@@ -1,0 +1,13 @@
+# compilation and distribution
+__pycache__
+_ext
+*.pyc
+*.so
+
+# output files and test shells
+*.out
+*.sh
+
+# output dirs
+EXP*/
+eval*/
