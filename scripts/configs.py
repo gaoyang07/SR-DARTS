@@ -3,7 +3,7 @@ import argparse
 
 parser = argparse.ArgumentParser("SR-DARTS")
 
-parser.add_argument('--dir_data', type=str, default='/home/B/data',
+parser.add_argument('--dir_data', type=str, default='../datasets',
                     help='dataset directory')
 parser.add_argument('--data_train', type=str, default='DIV2K',
                     help='location of the training data')
