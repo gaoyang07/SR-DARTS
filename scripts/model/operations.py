@@ -84,7 +84,7 @@ class SepConv(nn.Module):
 class GroupConv(nn.Module):
 
     def __init__(self, C_in, C_out, kernel_size, stride, padding, groups, affine=True):
-        return super(GroupConv, self).__init__()
+        super(GroupConv, self).__init__()
         self.op = nn.Sequential(
             nn.ReLU(inplace=False),
             nn.Conv2d(C_in, C_in, kernel_size=kernel_size,

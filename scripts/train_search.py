@@ -11,7 +11,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
-# from torch.autograd import Variable
+from torch.autograd import Variable
 
 import torchvision
 import torchvision.datasets as dset
@@ -90,7 +90,7 @@ def main():
 
     writer = SummaryWriter('{}/{}'.format(args.save, 'visualization'))
     start = time.time()
-    best_valid_acc = 0
+    best_valid_index = 0
     for epoch in range(args.epochs):
         epoch_start = time.time()
         scheduler.step()
@@ -104,25 +104,25 @@ def main():
         # temperature = args.initial_temp * math.pow(args.temp_beta, epoch)
 
         # train
-        top1_acc, train_obj = train(
+        train_index, train_obj = train(
             train_loader, valid_loader, model, architect, criterion, optimizer_model, lr)
 
-        logging.info('top1_acc %f, took %f sec',
-                     top1_acc, time.time() - epoch_start)
-        writer.add_scalar('search/acc', top1_acc, epoch)
+        logging.info('train_index %f, took %f sec',
+                     train_index, time.time() - epoch_start)
+        writer.add_scalar('search/index', train_index, epoch)
         writer.add_scalar('search/loss', train_obj, epoch)
         writer.add_scalar('search/lr', lr, epoch)
 
         # valid
-        valid_acc, _ = infer(valid_loader, model, criterion)
-        if valid_acc > best_valid_acc:
-            best_valid_acc = valid_acc
+        valid_index, _ = infer(valid_loader, model, criterion)
+        if valid_index > best_valid_index:
+            best_valid_index = valid_index
             best_genotype = genotype
             utils.save(model, os.path.join(args.save, 'weights.pt'))
 
-        logging.info('valid_acc %f(best_acc %f), took %f sec',
-                     valid_acc, best_valid_acc, time.time() - epoch_start)
-        writer.add_scalar('valid/acc', valid_acc, epoch)
+        logging.info('valid_index %f(best_index %f), took %f sec',
+                     valid_index, best_valid_index, time.time() - epoch_start)
+        writer.add_scalar('valid/index', valid_index, epoch)
 
     logging.info('All epochs finished, took %f sec in total.',
                  time.time() - start)
@@ -135,41 +135,39 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
     objs = utils.AverageMeter()
     eval_index = utils.AverageMeter()
 
-    # for step, (input, target) in enumerate(valid_queue):
-    for step, (lr, hr, _, idx_scale) in enumerate(train_queue):
+    for step, (_input, _target, _, idx_scale) in enumerate(train_queue):
 
         model.train()
-        n = lr.size(0)
+        n = _input.size(0)
 
-        input = torch.Tensor(input, requires_grad=False).cuda()
-        target = torch.Tensor(
-            target, requires_grad=False).cuda(non_blocking=True)
+        _input = Variable(_input, requires_grad=False).cuda()
+        _target = Variable(_target, requires_grad=False).cuda(non_blocking=True)
 
         # get a random minibatch from the search queue with replacement
-        input_search, target_search = next(iter(valid_queue))
-        input_search = torch.Tensor(input_search, requires_grad=False).cuda()
-        target_search = torch.Tensor(
+        input_search, target_search, _, _ = next(iter(valid_queue))
+        input_search = Variable(input_search, requires_grad=False).cuda()
+        target_search = Variable(
             target_search, requires_grad=False).cuda(non_blocking=True)
 
-        architect.step(input, target, input_search, target_search,
+        architect.step(_input, _target, input_search, target_search,
                        lr, optimizer, unrolled=args.unrolled)
 
         optimizer.zero_grad()
 
         # output is the high-resolution image
-        output = model(lr, idx_scale)
-        loss = criterion(output, hr)
+        logits = model(_input, idx_scale)
+        loss = criterion(logits, _target)
         loss.backward()
 
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
 
-        psnr = utils.calc_PSNR(input, output)
+        psnr = utils.calc_PSNR(_input, logits)
         objs.update(loss.item(), n)
         eval_index.update(psnr, n)
 
         if step % args.report_freq == 0:
-            logging.info('train %03d %e %f %f', step,
+            logging.info('train %03d %e %f', step,
                          objs.avg, eval_index.avg)
 
     return eval_index.avg, objs.avg
@@ -180,24 +178,25 @@ def infer(valid_queue, model, criterion):
     eval_index = utils.AverageMeter()
     model.eval()
 
-    for step, (input, target) in enumerate(valid_queue):
-        input = torch.Tensor(input, requires_grad=False).cuda()
-        target = torch.Tensor(
-            target, requires_grad=False).cuda(non_blocking=True)
+    for step, (_input, _target, _, idx_scale) in enumerate(valid_queue):
 
-        logits = model(input)
-        loss = criterion(logits, target)
+        _input = Variable(_input, requires_grad=False).cuda()
+        _target = Variable(_target, requires_grad=False).cuda(non_blocking=True)
 
-        psnr = utils.calc_PSNR(input, output)
-        n = input.size(0)
+        logits = model(_input)
+        loss = criterion(logits, _target)
+
+        psnr = utils.calc_PSNR(_input, logits)
+        n = _input.size(0)
+
         objs.update(loss.item(), n)
         eval_index.update(psnr, n)
 
         if step % args.report_freq == 0:
-            logging.info('valid %03d %e %f %f', step,
-                         objs.avg, top1.avg, top5.avg)
+            logging.info('valid %03d %e %f', step,
+                         objs.avg, eval_index.avg)
 
-    return top1.avg, objs.avg
+    return eval_index.avg, objs.avg
 
 
 if __name__ == '__main__':
