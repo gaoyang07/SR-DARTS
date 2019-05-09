@@ -9,11 +9,7 @@ def _concat(xs):
 
 
 class Architect(object):
-    """
-    1711.00123 mentions 3 methods for optimizing discrete problems:
-    >> Reinforce, Relax and Rebar
-    We choose Relax at this class
-    """
+
     def __init__(self, model, args):
         self.network_momentum = args.momentum
         self.network_weight_decay = args.weight_decay

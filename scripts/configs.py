@@ -30,13 +30,14 @@ parser.add_argument('--rgb_range', type=int, default=255,
                     help='maximum value of RGB')
 parser.add_argument('--n_colors', type=int, default=3,
                     help='number of color channels to use')
+parser.add_argument('--patch_size', type=int, default=192,
+                    help='output patch size')
 
 parser.add_argument('--epochs', type=int, default=50,
                     help='num of training epochs')
-parser.add_argument('--batch_size', type=int, default=64,
+parser.add_argument('--batch_size', type=int, default=2,
                     help='batch size')
-parser.add_argument('--patch_size', type=int, default=192,
-                    help='output patch size')
+
 parser.add_argument('--test_every', type=int, default=1000,
                     help='do test per every N batches')
 parser.add_argument('--learning_rate', type=float,
@@ -54,7 +55,7 @@ parser.add_argument('--arch_weight_decay', type=float, default=1e-3,
 parser.add_argument('--report_freq', type=float,
                     default=50, help='report frequency')
 parser.add_argument('--init_channels', type=int,
-                    default=16, help='num of init channels')
+                    default=12, help='num of init channels')
 parser.add_argument('--layers', type=int, default=8,
                     help='total number of layers')
 

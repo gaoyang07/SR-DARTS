@@ -94,7 +94,12 @@ class Network(nn.Module):
 
         # self.global_pooling = nn.AdaptiveAvgPool2d(1)
         # self.classifier = nn.Linear(C_prev, num_classes)
-        self.upsampler = nn.UpsamplingBilinear2d(size=None, scale_factor=self._scale)
+        self.channel_reducer = nn.Sequential(
+            nn.Conv2d(192, 3, 3, padding=1, bias=False),
+            nn.BatchNorm2d(3)
+        )
+        # self.upsampler = nn.UpsamplingBilinear2d(scale_factor=self._scale)
+        self.upsampler = nn.UpsamplingBilinear2d(size=(192, 192))
 
         self._initialize_alphas()
 
@@ -116,7 +121,8 @@ class Network(nn.Module):
             s0, s1 = s1, cell(s0, s1, weights)
         # out = self.global_pooling(s1)
         # logits = self.classifier(out.view(out.size(0), -1))
-        logits = self.upsampler(s1)
+        out = self.channel_reducer(s1)
+        logits = self.upsampler(out)
         return logits
 
     def _loss(self, input, target):
