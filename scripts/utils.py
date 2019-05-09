@@ -204,9 +204,9 @@ def quantize(img, rgb_range):
 def calc_psnr(sr, hr, scale, rgb_range, dataset=None):
     if hr.nelement() == 1:
         return 0
-
     diff = (sr - hr) / rgb_range
-    if dataset and dataset.dataset.benchmark:
+    # if dataset and dataset.dataset.benchmark:
+    if dataset:
         shave = scale
         if diff.size(1) > 1:
             gray_coeffs = [65.738, 129.057, 25.064]

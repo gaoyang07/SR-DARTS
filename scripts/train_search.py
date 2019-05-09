@@ -141,7 +141,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         n = _input.size(0)
 
         _input = Variable(_input, requires_grad=False).cuda()
-        _target = Variable(_target, requires_grad=False).cuda(non_blocking=True)
+        _target = Variable(_target, requires_grad=False).cuda(
+            non_blocking=True)
 
         # get a random minibatch from the search queue with replacement
         input_search, target_search, _, _ = next(iter(valid_queue))
@@ -155,19 +156,20 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         optimizer.zero_grad()
 
         # output is the high-resolution image
-        logits = model(_input, idx_scale)
+        logits = model(_input)
         loss = criterion(logits, _target)
         loss.backward()
 
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
 
-        psnr = utils.calc_PSNR(_input, logits)
+        psnr = utils.calc_psnr(logits, _target, int(args.scale),
+                               args.rgb_range, dataset=args.data_train)
         objs.update(loss.item(), n)
         eval_index.update(psnr, n)
 
         if step % args.report_freq == 0:
-            logging.info('train %03d %e %f', step,
+            logging.info('train step: %03d   loss: %e    PSNR: %.2f', step,
                          objs.avg, eval_index.avg)
 
     return eval_index.avg, objs.avg
@@ -181,19 +183,21 @@ def infer(valid_queue, model, criterion):
     for step, (_input, _target, _, idx_scale) in enumerate(valid_queue):
 
         _input = Variable(_input, requires_grad=False).cuda()
-        _target = Variable(_target, requires_grad=False).cuda(non_blocking=True)
+        _target = Variable(_target, requires_grad=False).cuda(
+            non_blocking=True)
 
         logits = model(_input)
         loss = criterion(logits, _target)
 
-        psnr = utils.calc_PSNR(_input, logits)
+        psnr = utils.calc_psnr(logits, _target, int(args.scale),
+                               args.rgb_range, dataset=args.data_test)
         n = _input.size(0)
 
         objs.update(loss.item(), n)
         eval_index.update(psnr, n)
 
         if step % args.report_freq == 0:
-            logging.info('valid %03d %e %f', step,
+            logging.info('valid step: %03d   loss: %e    PSNR: %.2f', step,
                          objs.avg, eval_index.avg)
 
     return eval_index.avg, objs.avg
