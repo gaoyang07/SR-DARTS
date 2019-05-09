@@ -39,7 +39,8 @@ class DataLoader(object):
                 shuffle=True,
                 pin_memory=True,
             )
-            # self.valid_loader = MSDataLoader()
+
+            self.valid_loader = self.train_loader
 
         for d in args.data_test:
             if d in ['Set5', 'Set14', 'B100', 'Urban100']:
