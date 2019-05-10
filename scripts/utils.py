@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import torch.optim.lr_scheduler as lrs
 import torch.optim as optim
 import torch
@@ -12,7 +13,6 @@ from multiprocessing import Queue
 
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
 
 class AverageMeter(object):
@@ -219,6 +219,29 @@ def calc_psnr(sr, hr, scale, rgb_range, dataset=None):
     mse = valid.pow(2).mean()
 
     return -10 * math.log10(mse)
+
+
+def count_parameters_in_MB(model):
+    return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
+
+
+def create_exp_dir(path, scripts_to_save=None):
+    if not os.path.exists(path):
+        os.mkdir(path)
+    print('Experiment dir : {}'.format(path))
+
+    if scripts_to_save is not None:
+        os.mkdir(os.path.join(path, 'scripts'))
+        for script in scripts_to_save:
+            dst_file = os.path.join(path, 'scripts', os.path.basename(script))
+            shutil.copyfile(script, dst_file)
+
+
+def save(model, model_path):
+    torch.save(model.state_dict(), model_path)
+
+def load(model, model_path):
+    model.load_state_dict(torch.load(model_path))
 
 
 def make_optimizer(args, target):
