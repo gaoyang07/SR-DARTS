@@ -32,7 +32,7 @@ def main():
     # save the scripts and related parameters.
     args.save = '{}-search-{}'.format(args.save,
                                       time.strftime("%Y%m%d-%H%M%S"))
-    create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+    utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
     log_format = '%(asctime)s %(message)s'
     logging.basicConfig(stream=sys.stdout, level=logging.INFO,
@@ -59,12 +59,11 @@ def main():
     model = Network(args.init_channels, args.layers, args.scale, criterion)
 
     if args.checkpoint:
-        load(model, args.model_path)
-        logging.info("loading checkpoint: '{}'".format(args.model_path))
+        raise NotImplementedError("Checkpoint not implemented")
     model = model.cuda()
 
     logging.info("args = %s", args)
-    logging.info("param size = %fMB", count_parameters_in_MB(model))
+    logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
     data_loader = DataLoader(args)
     train_loader = data_loader.train_loader
