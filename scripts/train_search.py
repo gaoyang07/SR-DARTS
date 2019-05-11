@@ -23,7 +23,6 @@ from model.model_search import Network
 from model.architect import Architect
 from data.dataloader import DataLoader as DataLoader
 
-# from tensorboardX import SummaryWriter
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -46,18 +45,16 @@ def main():
         logging.info('no gpu device available')
         sys.exit(1)
 
-    np.random.seed(args.seed)
-    # criterion = nn.CrossEntropyLoss()
-    criterion = nn.MSELoss()  # MSE loss is for SR task.
+    criterion = nn.MSELoss()
     criterion = criterion.cuda()
 
+    np.random.seed(args.seed)
     cudnn.benchmark = True
     torch.manual_seed(args.seed)
     cudnn.enabled = True
     torch.cuda.manual_seed(args.seed)
 
     model = Network(args.init_channels, args.layers, args.scale, criterion)
-
     if args.checkpoint:
         raise NotImplementedError("Checkpoint not implemented")
     model = model.cuda()
@@ -76,18 +73,12 @@ def main():
         momentum=args.momentum,
         weight_decay=args.weight_decay)
 
-    # optimizer_arch = torch.optim.Adam(
-    #     model.arch_parameters(),
-    #     args.arch_learning_rate,
-    #     betas=(0.5, 0.999),
-    #     weight_decay=args.arch_weight_decay)
-
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer_model, float(args.epochs), eta_min=args.learning_rate_min)
 
     architect = Architect(model, args)
 
-    writer = SummaryWriter('{}/{}'.format(args.save, 'visualization'))
+    writer = SummaryWriter('{}/{}'.format(args.save, 'visual'))
     start = time.time()
     best_valid_index = 0
     for epoch in range(args.epochs):
@@ -139,15 +130,15 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         model.train()
         n = _input.size(0)
 
-        _input = Variable(_input, requires_grad=False).cuda()
-        _target = Variable(_target, requires_grad=False).cuda(
-            non_blocking=True)
+        _input = _input.clone().detach().requires_grad_(False).cuda()
+        _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
         # get a random minibatch from the search queue with replacement
         input_search, target_search, _, _ = next(iter(valid_queue))
-        input_search = Variable(input_search, requires_grad=False).cuda()
-        target_search = Variable(
-            target_search, requires_grad=False).cuda(non_blocking=True)
+
+        input_search = input_search.clone().detach().requires_grad_(False).cuda()
+        target_search = target_search.clone().detach(
+                        ).requires_grad_(False).cuda(non_blocking=True)
 
         architect.step(_input, _target, input_search, target_search,
                        lr, optimizer, unrolled=args.unrolled)
@@ -181,9 +172,8 @@ def infer(valid_queue, model, criterion):
 
     for step, (_input, _target, _, idx_scale) in enumerate(valid_queue):
 
-        _input = Variable(_input, requires_grad=False).cuda()
-        _target = Variable(_target, requires_grad=False).cuda(
-            non_blocking=True)
+        _input = _input.clone().detach().requires_grad_(False).cuda()
+        _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
         logits = model(_input)
         loss = criterion(logits, _target)
