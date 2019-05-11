@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import torch.optim.lr_scheduler as lrs
 import torch.optim as optim
 import torch
@@ -7,13 +6,14 @@ import numpy as np
 import os
 import math
 import time
+import shutil
 import datetime
 from multiprocessing import Process
 from multiprocessing import Queue
 
 import matplotlib
 matplotlib.use('Agg')
-
+import matplotlib.pyplot as plt
 
 class AverageMeter(object):
 
