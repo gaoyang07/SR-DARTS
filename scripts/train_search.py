@@ -15,7 +15,6 @@ from torch.autograd import Variable
 
 import torchvision
 import torchvision.datasets as dset
-import torchvision.transforms as transforms
 
 from configs import args
 from model.common import *
@@ -65,7 +64,7 @@ def main():
     data_loader = DataLoader(args)
     train_loader = data_loader.train_loader
     valid_loader = data_loader.valid_loader
-    test_loader = data_loader.test_loader
+    # test_loader = data_loader.test_loader
 
     optimizer_model = torch.optim.SGD(
         model.parameters(),
@@ -153,8 +152,8 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
 
-        psnr = utils.calc_psnr(logits, _target, int(args.scale),
-                               args.rgb_range, dataset=args.data_train)
+        psnr = utils.calc_psnr(logits, _target, idx_scale,
+                               args.rgb_range, is_search=True)
         objs.update(loss.item(), n)
         eval_index.update(psnr, n)
 
@@ -176,10 +175,12 @@ def infer(valid_queue, model, criterion):
         _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
         logits = model(_input)
+        logits = utils.quantize(logits, args.rgb_range)
+
         loss = criterion(logits, _target)
 
-        psnr = utils.calc_psnr(logits, _target, int(args.scale),
-                               args.rgb_range, dataset=args.data_test)
+        psnr = utils.calc_psnr(logits, _target, idx_scale,
+                               args.rgb_range, is_search=True)
         n = _input.size(0)
 
         objs.update(loss.item(), n)
