@@ -16,7 +16,7 @@ class SRData(data.Dataset):
         self.args = args
         self.name = name
         self.train = train
-        self.split = 'train' if train else 'test'
+        self.search = args.search
         self.do_eval = True
         self.benchmark = benchmark
         self.input_large = False
@@ -136,7 +136,7 @@ class SRData(data.Dataset):
 
     def get_patch(self, lr, hr):
         scale = self.scale[self.idx_scale]
-        if self.train:
+        if self.search or self.train:
             lr, hr = common.get_patch(
                 lr, hr,
                 patch_size=self.args.patch_size,

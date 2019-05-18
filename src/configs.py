@@ -14,6 +14,9 @@ parser.add_argument('--data_test', type=str, default='DIV2K',
 parser.add_argument('--data_range', type=str, default='1-800/801-810',
                     help='train/test data range')
 
+parser.add_argument('--search', action="store_true", default=True,
+                    help='the searching process.')
+
 parser.add_argument('--ext', type=str, default='sep',
                     help='dataset file extension')
 parser.add_argument('--model_path', type=str, default='',
