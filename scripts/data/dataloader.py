@@ -24,13 +24,11 @@ class DataLoader(object):
 
         if not args.test_only:
             datasets = []
-            # for d in args.data_train:
-            #     module_name = d if d.find('DIV2K-Q') < 0 else 'DIV2KJPEG'
-            #     m = import_module('data.' + module_name.lower())
-            #     datasets.append(getattr(m, module_name)(args, name=d))
-            module_name = args.data_train if args.data_train.find('DIV2K-Q') < 0 else 'DIV2KJPEG'
-            m = import_module('data.' + module_name.lower())
-            datasets.append(getattr(m, module_name)(args, name=args.data_train))
+            datasets_valid = []
+            for d in args.data_train:
+                module_name = d if d.find('DIV2K-Q') < 0 else 'DIV2KJPEG'
+                m = import_module('data.' + module_name.lower())
+                datasets.append(getattr(m, module_name)(args, name=d, train=True))
 
             self.train_loader = MSDataLoader(
                 args,
@@ -40,7 +38,18 @@ class DataLoader(object):
                 pin_memory=True,
             )
 
-            self.valid_loader = self.train_loader
+            for d in args.data_valid:
+                module_name = d if d.find('DIV2K-Q') < 0 else 'DIV2KJPEG'
+                m = import_module('data.' + module_name.lower())
+                datasets_valid.append(getattr(m, module_name)(args, name=d, train=False))
+
+            self.valid_loader = MSDataLoader(
+                args,
+                MyConcatDataset(datasets_valid),
+                batch_size=args.batch_size,
+                shuffle=False,
+                pin_memory=True,
+            )
 
         for d in args.data_test:
             if d in ['Set5', 'Set14', 'B100', 'Urban100']:

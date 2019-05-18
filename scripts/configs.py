@@ -7,10 +7,13 @@ parser.add_argument('--dir_data', type=str, default='../datasets',
                     help='dataset directory')
 parser.add_argument('--data_train', type=str, default='DIV2K',
                     help='location of the training data')
-parser.add_argument('--data_test', type=str, default='',
+parser.add_argument('--data_valid', type=str, default='DIV2K',
+                    help='location of the training data')
+parser.add_argument('--data_test', type=str, default='DIV2K',
                     help='location of the testing data')
 parser.add_argument('--data_range', type=str, default='1-800/801-810',
                     help='train/test data range')
+
 parser.add_argument('--ext', type=str, default='sep',
                     help='dataset file extension')
 parser.add_argument('--model_path', type=str, default='',
@@ -19,8 +22,11 @@ parser.add_argument('--checkpoint', action='store_true', default=False,
                     help='choose to keep training using the former model')
 parser.add_argument('--save', type=str, default='EXP',
                     help='experiment name')
+
 parser.add_argument('--gpu', type=str, default='0',
                     help="gpu device id")
+parser.add_argument('--n_GPUs', type=int, default=4,
+                    help='number of GPUs')
 parser.add_argument('--n_threads', type=int, default=4,
                     help='number of threads for data loading')
 
@@ -35,7 +41,7 @@ parser.add_argument('--patch_size', type=int, default=192,
 
 parser.add_argument('--epochs', type=int, default=50,
                     help='num of training epochs')
-parser.add_argument('--batch_size', type=int, default=2,
+parser.add_argument('--batch_size', type=int, default=16,
                     help='batch size')
 
 parser.add_argument('--test_every', type=int, default=1000,
@@ -89,3 +95,11 @@ parser.add_argument('--scale', type=str, default='2',
 
 
 args = parser.parse_args()
+
+args.scale = list(map(lambda x: int(x), args.scale.split('+')))
+args.data_train = args.data_train.split('+')
+args.data_valid = args.data_valid.split('+')
+args.data_test = args.data_test.split('+')
+
+if args.epochs == 0:
+    args.epochs = 1e8
