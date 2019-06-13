@@ -11,25 +11,21 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
+
 from torch.autograd import Variable
-
-import torchvision
-import torchvision.datasets as dset
-
-from configs import args
+from configs.search_configs import args
 from model.common import *
 from model.model_search import Network
 from model.architect import Architect
-from data.dataloader import DataLoader as DataLoader
-
+from data.dataloader import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 
 def main():
 
     # save the scripts and related parameters.
-    args.save = '{}-search-{}'.format(args.save,
-                                      time.strftime("%Y%m%d-%H%M%S"))
+    args.save = '{}search-{}-{}'.format(args.save,
+                                        args.note, time.strftime("%Y%m%d-%H%M%S"))
     utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
     log_format = '%(asctime)s %(message)s'
@@ -44,7 +40,7 @@ def main():
         logging.info('no gpu device available')
         sys.exit(1)
 
-    criterion = nn.MSELoss()
+    criterion = nn.L1Loss()
     criterion = criterion.cuda()
 
     np.random.seed(args.seed)
@@ -64,7 +60,6 @@ def main():
     data_loader = DataLoader(args)
     train_loader = data_loader.train_loader
     valid_loader = data_loader.valid_loader
-    # test_loader = data_loader.test_loader
 
     optimizer_model = torch.optim.SGD(
         model.parameters(),
@@ -107,7 +102,7 @@ def main():
         if valid_index > best_valid_index:
             best_valid_index = valid_index
             best_genotype = genotype
-            utils.save(model, os.path.join(args.save, 'weights.pt'))
+            # utils.save(model, os.path.join(args.save, 'weights.pt'))
 
         logging.info('valid_index %f(best_index %f), took %f sec',
                      valid_index, best_valid_index, time.time() - epoch_start)
@@ -137,7 +132,7 @@ def train(train_queue, valid_queue, model, architect, criterion, optimizer, lr):
 
         input_search = input_search.clone().detach().requires_grad_(False).cuda()
         target_search = target_search.clone().detach(
-                        ).requires_grad_(False).cuda(non_blocking=True)
+        ).requires_grad_(False).cuda(non_blocking=True)
 
         architect.step(_input, _target, input_search, target_search,
                        lr, optimizer, unrolled=args.unrolled)
