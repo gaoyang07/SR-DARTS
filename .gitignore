@@ -11,5 +11,5 @@ _ext
 # output dirs
 EXP*/
 eval*/
-
+output/
 datasets/
