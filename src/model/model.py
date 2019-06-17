@@ -11,7 +11,7 @@ class Cell(nn.Module):
 
     def __init__(self, genotype, C_prev_prev, C_prev, C, reduction, reduction_prev):
         super(Cell, self).__init__()
-        print(C_prev_prev, C_prev, C)
+        # print(C_prev_prev, C_prev, C)
 
         if reduction_prev:
             self.preprocess0 = FactorizedReduce(C_prev_prev, C)
@@ -91,6 +91,7 @@ class Network(nn.Module):
     def __init__(self, C, layers, scale, genotype):
         super(Network, self).__init__()
         self._layers = layers
+        self._scale = scale[0]
         # self._auxiliary = auxiliary
 
         stem_multiplier = 3
@@ -120,24 +121,29 @@ class Network(nn.Module):
         # if auxiliary:
         #     self.auxiliary_head = AuxiliaryHeadSR(
         #         C_to_auxiliary, num_classes)
+
         # self.global_pooling = nn.AdaptiveAvgPool2d(1)
         # self.classifier = nn.Linear(C_prev, num_classes)
         self.channel_reducer = nn.Sequential(
             nn.Conv2d(576, 3, 3, padding=1, bias=False),
             nn.BatchNorm2d(3)
         )
-        # self.upsampler = nn.UpsamplingBilinear2d(scale_factor=self._scale)
+        self.upsampler = nn.UpsamplingBilinear2d(scale_factor=self._scale)
         self.upsampler = nn.UpsamplingBilinear2d(size=(192, 192))
 
     def forward(self, input):
+        print("------- input.size: {}".format(input.size()))
         # logits_aux = None
         s0 = s1 = self.stem(input)
         for i, cell in enumerate(self.cells):
+            print("-----------    s1.size: {}".format(s1.size()))
             s0, s1 = s1, cell(s0, s1, self.drop_path_prob)
             # if i == 2*self._layers//3:
             #     if self._auxiliary and self.training:
             #         logits_aux = self.auxiliary_head(s1)
+        print("-------    s1.size: {}".format(s1.size()))
         out = self.channel_reducer(s1)
-
+        print("-------   out.size: {}".format(out.size()))
         logits = self.upsampler(out)
+        print("-------logits.size: {}".format(logits.size()))
         return logits

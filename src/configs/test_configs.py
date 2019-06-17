@@ -8,17 +8,17 @@ parser.add_argument('--data_train', type=str, default='DIV2K',
                     help='location of the training data')
 parser.add_argument('--data_valid', type=str, default='DIV2K',
                     help='location of the training data')
-parser.add_argument('--data_test', type=str, default='DIV2K',
+parser.add_argument('--data_test', type=str, default='B100+Set5+Set14+Urban100',
                     help='location of the testing data')
 parser.add_argument('--data_range', type=str, default='1-800/801-900',
                     help='train/test data range')
 
-parser.add_argument('--search', action="store_true", default=True,
+parser.add_argument('--search', action="store_true", default=False,
                     help='the searching process.')
 
 parser.add_argument('--ext', type=str, default='sep',
                     help='dataset file extension')
-parser.add_argument('--model_path', type=str, default='',
+parser.add_argument('--model_path', type=str, default='weights.pt',
                     help='path to save the model')
 parser.add_argument('--checkpoint', action='store_true', default=False,
                     help='choose to keep training using the former model')
@@ -62,21 +62,15 @@ parser.add_argument('--arch_learning_rate', type=float, default=3e-4,
                     help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3,
                     help='weight decay for arch encoding')
-parser.add_argument('--report_freq', type=float,
-                    default=50, help='report frequency')
-parser.add_argument('--init_channels', type=int,
-                    default=36, help='num of init channels')
-parser.add_argument('--layers', type=int, default=20,
-                    help='total number of layers')
 
+parser.add_argument('--test_only', action='store_true', default=True,
+                    help='set this option to test the model')
 parser.add_argument('--report_freq', type=float,
                     default=50, help='report frequency')
 parser.add_argument('--init_channels', type=int,
                     default=36, help='num of init channels')
 parser.add_argument('--layers', type=int, default=20,
                     help='total number of layers')
-parser.add_argument('--model_path', type=str,
-                    default='EXP/model.pt', help='path of pretrained model')
 parser.add_argument('--auxiliary', action='store_true',
                     default=False, help='use auxiliary tower')
 parser.add_argument('--cutout', action='store_true',
@@ -88,6 +82,8 @@ parser.add_argument('--drop_path_prob', type=float,
 parser.add_argument('--seed', type=int, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='SRdarts_V1',
                     help='which architecture to use')
+parser.add_argument('--scale', type=str, default='2',
+                    help='the scale factor of super resolution image')
 
 args = parser.parse_args()
 

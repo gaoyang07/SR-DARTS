@@ -1,13 +1,14 @@
 import os
 import sys
 import glob
+import time
 import numpy as np
 import torch
 import utils
+import tqdm
 import logging
 import argparse
 import torch.nn as nn
-import genotypes
 import torch.utils
 import torch.backends.cudnn as cudnn
 
@@ -20,10 +21,11 @@ from torch.autograd import Variable
 from torch.utils.tensorboard import SummaryWriter
 
 args.save = '{}test-{}-{}'.format(args.save,
-                                      args.note, time.strftime("%Y%m%d-%H%M%S"))
+                                  args.note, time.strftime("%Y%m%d-%H%M%S"))
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format=log_format, datefmt='%m/%d %I:%M:%S %p')
+
 
 def main():
     if not torch.cuda.is_available():
@@ -36,56 +38,50 @@ def main():
     torch.manual_seed(args.seed)
     cudnn.enabled = True
     torch.cuda.manual_seed(args.seed)
-    logging.info('gpu device = %d' % args.gpu)
     logging.info("args = %s", args)
 
     genotype = eval("genotypes.%s" % args.arch)
-    model = Network(args.init_channels, CIFAR_CLASSES,
-                    args.layers, args.auxiliary, genotype)
-    model = model.cuda()
+    model = Network(args.init_channels, args.layers, args.scale, genotype)
     utils.load(model, args.model_path)
+    model = model.cuda()
 
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.L1Loss()
     criterion = criterion.cuda()
 
-    _, test_transform = utils._data_transforms_cifar10(args)
-    test_data = dset.CIFAR10(root=args.data, train=False,
-                             download=True, transform=test_transform)
-
-    test_queue = torch.utils.data.DataLoader(
-        test_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=2)
+    test_loader = DataLoader(args).test_loader
 
     model.drop_path_prob = args.drop_path_prob
-    test_acc, test_obj = infer(test_queue, model, criterion)
-    logging.info('test_acc %f', test_acc)
+
+    # test_acc, test_loss = infer(test_loader, model, criterion)
+    # logging.info('test_acc %f', test_acc)
+
+    infer(test_loader, model, criterion)
 
 
 def infer(test_queue, model, criterion):
-    objs = utils.AverageMeter()
-    top1 = utils.AverageMeter()
-    top5 = utils.AverageMeter()
+    # objs = utils.AverageMeter()
+    eval_index = utils.AverageMeter()
     model.eval()
 
-    for step, (input, target) in enumerate(test_queue):
-        input = Variable(input, requires_grad=False).cuda()
-        target = Variable(target, requires_grad=False).cuda(async=True)
+    for idx_data, d in enumerate(test_queue):
+        eval_index = utils.AverageMeter()
+        for step, (_input, _target, _, idx_scale) in enumerate(d):
+            _input = _input.clone().detach().requires_grad_(False).cuda()
+            _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
-        logits, _ = model(input)
-        loss = criterion(logits, target)
-
-        prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
-        n = input.size(0)
-        objs.update(loss.item(), n)
-        top1.update(prec1.item(), n)
-        top5.update(prec5.item(), n)
-
-        if step % args.report_freq == 0:
-            logging.info('test %03d %e %f %f', step,
-                         objs.avg, top1.avg, top5.avg)
-
-    return top1.avg, objs.avg
+            logits = model(_input)
+            logits = utils.quantize(logits, args.rgb_range)
+            psnr = utils.calc_psnr(logits, _target, idx_scale,
+                                   args.rgb_range, is_search=False)
+            n = _input.size(0)
+            # objs.update(loss.item(), n)
+            eval_index.update(psnr, n)
+            # print("In data {}: {}".format(idx_data, psnr))
+            # loss = criterion(logits, _target)
+        logging.info('{}: PSNR: {}'.format(idx_data, eval_index.avg))
+    # return eval_index.avg
 
 
 if __name__ == '__main__':
