@@ -43,8 +43,8 @@ class Cell(nn.Module):
     def forward(self, s0, s1, drop_prob):
         s0 = self.preprocess0(s0)
         s1 = self.preprocess1(s1)
-
         states = [s0, s1]
+
         for i in range(self._steps):
             h1 = states[self._indices[2*i]]
             h2 = states[self._indices[2*i+1]]
@@ -129,21 +129,20 @@ class Network(nn.Module):
             nn.BatchNorm2d(3)
         )
         self.upsampler = nn.UpsamplingBilinear2d(scale_factor=self._scale)
-        self.upsampler = nn.UpsamplingBilinear2d(size=(192, 192))
 
     def forward(self, input):
-        print("------- input.size: {}".format(input.size()))
         # logits_aux = None
         s0 = s1 = self.stem(input)
         for i, cell in enumerate(self.cells):
-            print("-----------    s1.size: {}".format(s1.size()))
             s0, s1 = s1, cell(s0, s1, self.drop_path_prob)
             # if i == 2*self._layers//3:
             #     if self._auxiliary and self.training:
             #         logits_aux = self.auxiliary_head(s1)
-        print("-------    s1.size: {}".format(s1.size()))
         out = self.channel_reducer(s1)
-        print("-------   out.size: {}".format(out.size()))
-        logits = self.upsampler(out)
-        print("-------logits.size: {}".format(logits.size()))
+
+        h, w = input.size()[2], input.size()[3]
+        resizer = nn.UpsamplingBilinear2d(size=(h, w))
+        out_resize = resizer(out)
+
+        logits = self.upsampler(out_resize)
         return logits

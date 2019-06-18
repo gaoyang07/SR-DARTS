@@ -54,34 +54,39 @@ def main():
 
     model.drop_path_prob = args.drop_path_prob
 
-    # test_acc, test_loss = infer(test_loader, model, criterion)
-    # logging.info('test_acc %f', test_acc)
-
     infer(test_loader, model, criterion)
 
 
 def infer(test_queue, model, criterion):
-    # objs = utils.AverageMeter()
+    objs = utils.AverageMeter()
     eval_index = utils.AverageMeter()
     model.eval()
 
     for idx_data, d in enumerate(test_queue):
-        eval_index = utils.AverageMeter()
-        for step, (_input, _target, _, idx_scale) in enumerate(d):
-            _input = _input.clone().detach().requires_grad_(False).cuda()
-            _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
+        for idx_scale, scale in enumerate(args.scale):
+            d.dataset.set_scale(idx_scale)
+            eval_index = utils.AverageMeter()
+            for step, (_input, _target, _, _) in enumerate(d):
+                _input = _input.clone().detach().requires_grad_(False).cuda()
+                _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
-            logits = model(_input)
-            logits = utils.quantize(logits, args.rgb_range)
-            psnr = utils.calc_psnr(logits, _target, idx_scale,
-                                   args.rgb_range, is_search=False)
-            n = _input.size(0)
-            # objs.update(loss.item(), n)
-            eval_index.update(psnr, n)
-            # print("In data {}: {}".format(idx_data, psnr))
-            # loss = criterion(logits, _target)
-        logging.info('{}: PSNR: {}'.format(idx_data, eval_index.avg))
-    # return eval_index.avg
+                logits = model(_input)
+                logits = utils.quantize(logits, args.rgb_range)
+
+                assert logits.size() == _target.size()
+                loss = criterion(logits, _target)
+                psnr = utils.calc_psnr(logits, _target, scale,
+                                       args.rgb_range, is_search=False)
+                n = _input.size(0)
+                objs.update(loss.item(), n)
+                eval_index.update(psnr, n)
+
+                if step % args.report_freq == 0:
+                    logging.info('In data %s [scale %d] step %03d: loss: %e   PSNR: %.2f',
+                                 d.dataset.name, scale, step, objs.avg, eval_index.avg)
+
+            logging.info('In data %s [scale %d] avg PSNR: %.2f',
+                         d.dataset.name, scale, eval_index.avg)
 
 
 if __name__ == '__main__':
