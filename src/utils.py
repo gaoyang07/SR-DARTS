@@ -1,49 +1,21 @@
-import torch.optim.lr_scheduler as lrs
-import torch.optim as optim
-import torch
-import imageio
-import numpy as np
 import os
+import pdb
 import math
 import time
-import shutil
+import cv2
 import datetime
-from multiprocessing import Process
-from multiprocessing import Queue
+import scipy.misc as misc
+import numpy as np
+import matplotlib.pyplot as plt
+
+import torch
+import torch.optim.lr_scheduler as lrs
+import torch.optim as optim
+
+from functools import reduce
 
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
-class AverageMeter(object):
-
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.avg = 0
-        self.sum = 0
-        self.cnt = 0
-
-    def update(self, val, n=1):
-        self.sum += val * n
-        self.cnt += n
-        self.avg = self.sum / self.cnt
-
-
-def accuracy(output, target, topk=(1,)):
-    maxk = max(topk)
-    batch_size = target.size(0)
-
-    _, pred = output.topk(maxk, 1, True, True)
-    pred = pred.t()
-    correct = pred.eq(target.view(1, -1).expand_as(pred))
-
-    res = []
-    for k in topk:
-        correct_k = correct[:k].view(-1).float().sum(0)
-        res.append(correct_k.mul_(100.0/batch_size))
-    return res
 
 
 class timer():
@@ -54,11 +26,8 @@ class timer():
     def tic(self):
         self.t0 = time.time()
 
-    def toc(self, restart=False):
-        diff = time.time() - self.t0
-        if restart:
-            self.t0 = time.time()
-        return diff
+    def toc(self):
+        return time.time() - self.t0
 
     def hold(self):
         self.acc += self.toc()
@@ -80,48 +49,49 @@ class checkpoint():
         self.log = torch.Tensor()
         now = datetime.datetime.now().strftime('%Y-%m-%d-%H:%M:%S')
 
-        if not args.load:
-            if not args.save:
+        if args.load == '.':
+            if args.save == '.':
                 args.save = now
-            self.dir = os.path.join('..', 'experiment', args.save)
+            self.dir = './experiment/' + args.save
         else:
-            self.dir = os.path.join('..', 'experiment', args.load)
-            if os.path.exists(self.dir):
-                self.log = torch.load(self.get_path('psnr_log.pt'))
-                print('Continue from epoch {}...'.format(len(self.log)))
+            self.dir = './experiment/' + args.load
+            if not os.path.exists(self.dir):
+                args.load = '.'
             else:
-                args.load = ''
+                self.log = torch.load(self.dir + '/psnr_log.pt')
+                print('Continue from epoch {}...'.format(len(self.log)))
 
         if args.reset:
             os.system('rm -rf ' + self.dir)
-            args.load = ''
+            args.load = '.'
 
-        os.makedirs(self.dir, exist_ok=True)
-        os.makedirs(self.get_path('model'), exist_ok=True)
-        for d in args.data_test:
-            os.makedirs(self.get_path('results-{}'.format(d)), exist_ok=True)
+        def _make_dir(path):
+            if not os.path.exists(path):
+                os.makedirs(path)
 
-        open_type = 'a' if os.path.exists(self.get_path('log.txt'))else 'w'
-        self.log_file = open(self.get_path('log.txt'), open_type)
-        with open(self.get_path('config.txt'), open_type) as f:
+        _make_dir(self.dir)
+        _make_dir(self.dir + '/model')
+        _make_dir(self.dir + '/results')
+
+        open_type = 'a' if os.path.exists(self.dir + '/log.txt') else 'w'
+        self.log_file = open(self.dir + '/log.txt', open_type)
+        with open(self.dir + '/config.txt', open_type) as f:
             f.write(now + '\n\n')
             for arg in vars(args):
                 f.write('{}: {}\n'.format(arg, getattr(args, arg)))
             f.write('\n')
 
-        self.n_processes = 8
-
-    def get_path(self, *subdir):
-        return os.path.join(self.dir, *subdir)
-
     def save(self, trainer, epoch, is_best=False):
-        trainer.model.save(self.get_path('model'), epoch, is_best=is_best)
+        trainer.model.save(self.dir, epoch, is_best=is_best)
         trainer.loss.save(self.dir)
         trainer.loss.plot_loss(self.dir, epoch)
 
         self.plot_psnr(epoch)
-        trainer.optimizer.save(self.dir)
-        torch.save(self.log, self.get_path('psnr_log.pt'))
+        torch.save(self.log, os.path.join(self.dir, 'psnr_log.pt'))
+        torch.save(
+            trainer.optimizer.state_dict(),
+            os.path.join(self.dir, 'optimizer.pt')
+        )
 
     def add_log(self, log):
         self.log = torch.cat([self.log, log])
@@ -131,69 +101,36 @@ class checkpoint():
         self.log_file.write(log + '\n')
         if refresh:
             self.log_file.close()
-            self.log_file = open(self.get_path('log.txt'), 'a')
+            self.log_file = open(self.dir + '/log.txt', 'a')
 
     def done(self):
         self.log_file.close()
 
     def plot_psnr(self, epoch):
         axis = np.linspace(1, epoch, epoch)
-        for idx_data, d in enumerate(self.args.data_test):
-            label = 'SR on {}'.format(d)
-            fig = plt.figure()
-            plt.title(label)
-            for idx_scale, scale in enumerate(self.args.scale):
-                plt.plot(
-                    axis,
-                    self.log[:, idx_data, idx_scale].numpy(),
-                    label='Scale {}'.format(scale)
-                )
-            plt.legend()
-            plt.xlabel('Epochs')
-            plt.ylabel('PSNR')
-            plt.grid(True)
-            plt.savefig(self.get_path('test_{}.pdf'.format(d)))
-            plt.close(fig)
-
-    def begin_background(self):
-        self.queue = Queue()
-
-        def bg_target(queue):
-            while True:
-                if not queue.empty():
-                    filename, tensor = queue.get()
-                    if filename is None:
-                        break
-                    imageio.imwrite(filename, tensor.numpy())
-
-        self.process = [
-            Process(target=bg_target, args=(self.queue,))
-            for _ in range(self.n_processes)
-        ]
-
-        for p in self.process:
-            p.start()
-
-    def end_background(self):
-        for _ in range(self.n_processes):
-            self.queue.put((None, None))
-        while not self.queue.empty():
-            time.sleep(1)
-        for p in self.process:
-            p.join()
-
-    def save_results(self, dataset, filename, save_list, scale):
-        if self.args.save_results:
-            filename = self.get_path(
-                'results-{}'.format(dataset.dataset.name),
-                '{}_x{}_'.format(filename, scale)
+        label = 'SR on {}'.format(self.args.data_test)
+        fig = plt.figure()
+        plt.title(label)
+        for idx_scale, scale in enumerate(self.args.scale):
+            plt.plot(
+                axis,
+                self.log[:, idx_scale].numpy(),
+                label='Scale {}'.format(scale)
             )
+        plt.legend()
+        plt.xlabel('Epochs')
+        plt.ylabel('PSNR')
+        plt.grid(True)
+        plt.savefig('{}/test_{}.pdf'.format(self.dir, self.args.data_test))
+        plt.close(fig)
 
-            postfix = ('SR', 'LR', 'HR')
-            for v, p in zip(save_list, postfix):
-                normalized = v[0].mul(255 / self.args.rgb_range)
-                tensor_cpu = normalized.byte().permute(1, 2, 0).cpu()
-                self.queue.put(('{}{}.png'.format(filename, p), tensor_cpu))
+    def save_results(self, filename, save_list, scale):
+        filename = '{}/results/{}_x{}_'.format(self.dir, filename, scale)
+        postfix = ('SR', 'LR', 'HR')
+        for v, p in zip(save_list, postfix):
+            normalized = v[0].data.mul(255 / self.args.rgb_range)
+            ndarr = normalized.byte().permute(1, 2, 0).cpu().numpy()
+            misc.imsave('{}{}.png'.format(filename, p), ndarr)
 
 
 def quantize(img, rgb_range):
@@ -201,100 +138,131 @@ def quantize(img, rgb_range):
     return img.mul(pixel_range).clamp(0, 255).round().div(pixel_range)
 
 
-def calc_psnr(sr, hr, scale, rgb_range, is_search=True):
-    if hr.nelement() == 1:
-        return 0
-    diff = (sr - hr) / rgb_range
-    if not is_search:
+def calc_psnr(sr, hr, scale, rgb_range, benchmark=False):
+    # print(sr.size())
+    # print(hr.size())
+    # pdb.set_trace()
+    diff = (sr - hr).data.div(rgb_range)
+    if benchmark:
         shave = scale
         if diff.size(1) > 1:
-            gray_coeffs = [65.738, 129.057, 25.064]
-            convert = diff.new_tensor(gray_coeffs).view(1, 3, 1, 1) / 256
-            diff = diff.mul(convert).sum(dim=1)
+            convert = diff.new(1, 3, 1, 1)
+            convert[0, 0, 0, 0] = 65.738
+            convert[0, 1, 0, 0] = 129.057
+            convert[0, 2, 0, 0] = 25.064
+            diff.mul_(convert).div_(256)
+            diff = diff.sum(dim=1, keepdim=True)
     else:
         shave = scale + 6
-
-    valid = diff[..., shave:-shave, shave:-shave]
+    #shave = int(shave)
+    shave = math.ceil(shave)
+    valid = diff[:, :, shave:-shave, shave:-shave]
     mse = valid.pow(2).mean()
 
     return -10 * math.log10(mse)
 
 
-def count_parameters_in_MB(model):
-    return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
-
-
-def create_exp_dir(path, scripts_to_save=None):
-    if not os.path.exists(path):
-        os.mkdir(path)
-    print('Experiment dir : {}'.format(path))
-
-    if scripts_to_save is not None:
-        os.mkdir(os.path.join(path, 'scripts'))
-        for script in scripts_to_save:
-            dst_file = os.path.join(path, 'scripts', os.path.basename(script))
-            shutil.copyfile(script, dst_file)
-
-
-def save(model, model_path):
-    torch.save(model.state_dict(), model_path)
-
-def load(model, model_path):
-    model.load_state_dict(torch.load(model_path))
-
-
-def make_optimizer(args, target):
+def calc_ssim(img1, img2, scale=2, benchmark=False):
+    '''calculate SSIM
+    the same outputs as MATLAB's
+    img1, img2: [0, 255]
     '''
-        make optimizer and scheduler together
-    '''
-    # optimizer
-    trainable = filter(lambda x: x.requires_grad, target.parameters())
-    kwargs_optimizer = {'lr': args.lr, 'weight_decay': args.weight_decay}
+    if benchmark:
+        border = math.ceil(scale)
+    else:
+        border = math.ceil(scale)+6
+    # pdb.set_trace()
+    img1 = img1.data.squeeze().float().clamp(0, 255).round().cpu().numpy()
+    img1 = np.transpose(img1, (1, 2, 0))
+    img2 = img2.data.squeeze().cpu().numpy()
+    img2 = np.transpose(img2, (1, 2, 0))
+
+    img1_y = np.dot(img1, [65.738, 129.057, 25.064])/255.0+16.0
+    img2_y = np.dot(img2, [65.738, 129.057, 25.064])/255.0+16.0
+    if not img1.shape == img2.shape:
+        raise ValueError('Input images must have the same dimensions.')
+    h, w = img1.shape[:2]
+    img1_y = img1_y[border:h-border, border:w-border]
+    img2_y = img2_y[border:h-border, border:w-border]
+
+    if img1_y.ndim == 2:
+        return ssim(img1_y, img2_y)
+    elif img1.ndim == 3:
+        if img1.shape[2] == 3:
+            ssims = []
+            for i in range(3):
+                ssims.append(ssim(img1, img2))
+            return np.array(ssims).mean()
+        elif img1.shape[2] == 1:
+            return ssim(np.squeeze(img1), np.squeeze(img2))
+    else:
+        raise ValueError('Wrong input image dimensions.')
+
+
+def ssim(img1, img2):
+    C1 = (0.01 * 255)**2
+    C2 = (0.03 * 255)**2
+
+    img1 = img1.astype(np.float64)
+    img2 = img2.astype(np.float64)
+    kernel = cv2.getGaussianKernel(11, 1.5)
+    window = np.outer(kernel, kernel.transpose())
+
+    mu1 = cv2.filter2D(img1, -1, window)[5:-5, 5:-5]  # valid
+    mu2 = cv2.filter2D(img2, -1, window)[5:-5, 5:-5]
+    mu1_sq = mu1**2
+    mu2_sq = mu2**2
+    mu1_mu2 = mu1 * mu2
+    sigma1_sq = cv2.filter2D(img1**2, -1, window)[5:-5, 5:-5] - mu1_sq
+    sigma2_sq = cv2.filter2D(img2**2, -1, window)[5:-5, 5:-5] - mu2_sq
+    sigma12 = cv2.filter2D(img1 * img2, -1, window)[5:-5, 5:-5] - mu1_mu2
+
+    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) *
+                                                            (sigma1_sq + sigma2_sq + C2))
+    return ssim_map.mean()
+
+
+def make_optimizer(args, my_model):
+    trainable = filter(lambda x: x.requires_grad, my_model.parameters())
 
     if args.optimizer == 'SGD':
-        optimizer_class = optim.SGD
-        kwargs_optimizer['momentum'] = args.momentum
+        optimizer_function = optim.SGD
+        kwargs = {'momentum': args.momentum}
     elif args.optimizer == 'ADAM':
-        optimizer_class = optim.Adam
-        kwargs_optimizer['betas'] = args.betas
-        kwargs_optimizer['eps'] = args.epsilon
+        optimizer_function = optim.Adam
+        kwargs = {
+            'betas': (args.beta1, args.beta2),
+            'eps': args.epsilon
+        }
     elif args.optimizer == 'RMSprop':
-        optimizer_class = optim.RMSprop
-        kwargs_optimizer['eps'] = args.epsilon
+        optimizer_function = optim.RMSprop
+        kwargs = {'eps': args.epsilon}
 
-    # scheduler
-    milestones = list(map(lambda x: int(x), args.decay.split('-')))
-    kwargs_scheduler = {'milestones': milestones, 'gamma': args.gamma}
-    scheduler_class = lrs.MultiStepLR
+    kwargs['lr'] = args.lr
+    kwargs['weight_decay'] = args.weight_decay
 
-    class CustomOptimizer(optimizer_class):
-        def __init__(self, *args, **kwargs):
-            super(CustomOptimizer, self).__init__(*args, **kwargs)
+    return optimizer_function(trainable, **kwargs)
 
-        def _register_scheduler(self, scheduler_class, **kwargs):
-            self.scheduler = scheduler_class(self, **kwargs)
 
-        def save(self, save_dir):
-            torch.save(self.state_dict(), self.get_dir(save_dir))
+def make_scheduler(args, my_optimizer):
+    if args.decay_type == 'step':
+        scheduler = lrs.StepLR(
+            my_optimizer,
+            step_size=args.lr_decay,
+            gamma=args.gamma
+            #last_epoch = args.start_epoch
+        )
+    elif args.decay_type.find('step') >= 0:
+        milestones = args.decay_type.split('_')
+        milestones.pop(0)
+        milestones = list(map(lambda x: int(x), milestones))
+        scheduler = lrs.MultiStepLR(
+            my_optimizer,
+            milestones=milestones,
+            gamma=args.gamma
+            #last_epoch = args.start_epoch
+        )
 
-        def load(self, load_dir, epoch=1):
-            self.load_state_dict(torch.load(self.get_dir(load_dir)))
-            if epoch > 1:
-                for _ in range(epoch):
-                    self.scheduler.step()
+    scheduler.step(args.start_epoch-1)
 
-        def get_dir(self, dir_path):
-            return os.path.join(dir_path, 'optimizer.pt')
-
-        def schedule(self):
-            self.scheduler.step()
-
-        def get_lr(self):
-            return self.scheduler.get_lr()[0]
-
-        def get_last_epoch(self):
-            return self.scheduler.last_epoch
-
-    optimizer = CustomOptimizer(trainable, **kwargs_optimizer)
-    optimizer._register_scheduler(scheduler_class, **kwargs_scheduler)
-    return optimizer
+    return scheduler
