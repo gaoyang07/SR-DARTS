@@ -6,8 +6,6 @@ import torchvision.transforms as transforms
 import torch.distributed as dist
 from torch.autograd import Variable
 
-from model.lr_scheduler import WarmupMultiStepLR
-
 
 class Cutout(object):
     def __init__(self, length):
@@ -29,18 +27,6 @@ class Cutout(object):
         mask = mask.expand_as(img)
         img *= mask
         return img
-
-
-def make_lr_scheduler(args, optimizer):
-    return WarmupMultiStepLR(
-        optimizer,
-        args.steps,
-        args.gamma,
-        warmup_factor=args.warmup_factor,
-        warmup_iters=args.warmup_iters,
-        warmup_method=args.warmup_method,
-    )
-
 
 def drop_path(x, drop_prob):
     if drop_prob > 0.:
