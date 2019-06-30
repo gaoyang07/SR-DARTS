@@ -61,51 +61,58 @@ class Cell(nn.Module):
 
 
 class Network(nn.Module):
-
-    def __init__(self, C, layers, scale, criterion, steps=4, multiplier=4, stem_multiplier=3):
+    """
+    Network
+    """
+    def __init__(self, args, loss):
+        # model = Network(args.init_channels, args.layers, args.scale, criterion)
+    # def __init__(self, C, layers, scale, criterion, steps=4, multiplier=4, stem_multiplier=3):
         super(Network, self).__init__()
-        self._C = C
-        self._layers = layers
-        self._scale = scale
-        self._criterion = criterion
-        self._steps = steps
-        self._multiplier = multiplier
+        self.args = args
+        self._C = args.init_channels
+        self._layers = args.layers
+        self._scale = args.scale
+        self._criterion = loss
+        # self._steps = args.steps if args.steps else 4
+        self._steps = 4
+        # self._multiplier = args.multiplier if args.multiplier else 4
+        self._multiplier = 4
+        self.stem_multiplier = 3
 
-        C_curr = stem_multiplier * C
+        C_curr = self.stem_multiplier * self._C
         self.stem = nn.Sequential(
             nn.Conv2d(3, C_curr, 3, padding=1, bias=False),
             nn.BatchNorm2d(C_curr)
         )
 
-        C_prev_prev, C_prev, C_curr = C_curr, C_curr, C
+        C_prev_prev, C_prev, C_curr = C_curr, C_curr, self._C
         self.cells = nn.ModuleList()
         reduction_prev = False
-        for i in range(layers):
-            if i in [layers // 3, 2 * layers//3]:
+        for i in range(self._layers):
+            if i in [self._layers // 3, 2 * self._layers//3]:
                 C_curr *= 2
                 reduction = True
             else:
                 reduction = False
-            cell = Cell(steps, multiplier, C_prev_prev, C_prev,
+            cell = Cell(self._steps, self._multiplier, C_prev_prev, C_prev,
                         C_curr, reduction, reduction_prev)
             reduction_prev = reduction
             self.cells += [cell]
-            C_prev_prev, C_prev = C_prev, multiplier * C_curr
+            C_prev_prev, C_prev = C_prev, self._multiplier * C_curr
 
         # self.global_pooling = nn.AdaptiveAvgPool2d(1)
         # self.classifier = nn.Linear(C_prev, num_classes)
         self.channel_reducer = nn.Sequential(
-            nn.Conv2d(192, 3, 3, padding=1, bias=False),
+            nn.Conv2d(self._C*16, 3, 3, padding=1, bias=False),
             nn.BatchNorm2d(3)
         )
         # self.upsampler = nn.UpsamplingBilinear2d(scale_factor=self._scale)
-        self.upsampler = nn.UpsamplingBilinear2d(size=(192, 192))
+        self.upsampler = nn.UpsamplingBilinear2d(size=(args.patch_size, args.patch_size))
 
         self._initialize_alphas()
 
     def new(self):
-        model_new = Network(self._C, self._layers,
-                            self._scale, self._criterion).cuda()
+        model_new = Network(self.args, self._criterion).cuda()
         for x, y in zip(model_new.arch_parameters(), self.arch_parameters()):
             x.data.copy_(y.data)
         return model_new
