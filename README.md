@@ -4,6 +4,8 @@
 
 SRdarts is an implementation of DARTS on **Super-Resolution Task**, we use DARTS as the method baseline.
 
+Our code is built on [EDSR](https://github.com/thstkdgus35/EDSR-PyTorch) and [Meta-SR-Pytorch](https://github.com/XuecaiHu/Meta-SR-Pytorch).
+
 
 
 ## Download
