@@ -14,11 +14,14 @@ Genotype = namedtuple('Genotype', 'normal normal_concat reduce reduce_concat')
 # ]
 PRIMITIVES = [
     'none',
-    'skip_connect',
+    'avg_pool_3x3',
+    'max_pool_3x3',
     'conv_1x1',
     'conv_3x3',
     'sep_conv_3x3',
+    'sep_conv_5x5',
     'dil_conv_3x3',
+    'dil_conv_5x5',
     'group_conv_3x3_2',
     'group_conv_3x3_4',
 ]
@@ -86,3 +89,8 @@ AmoebaNet = Genotype(
 # At output/EXP-search, 0520/09:15:34 epoch 16
 SRdarts_V1 = Genotype(normal=[('skip_connect', 0), ('dil_conv_3x3', 1), ('group_conv_3x3_2', 2), ('sep_conv_3x3', 1), ('skip_connect', 2), ('skip_connect', 3), ('skip_connect', 3), ('group_conv_3x3_4', 4)], normal_concat=range(
     2, 6), reduce=[('skip_connect', 0), ('group_conv_3x3_4', 1), ('group_conv_3x3_2', 2), ('conv_1x1', 1), ('conv_3x3', 2), ('conv_3x3', 3), ('skip_connect', 4), ('conv_3x3', 0)], reduce_concat=range(2, 6))
+
+# PSNR 29.01 during search.
+# At experiment/search_with_less_layer, epoch 78
+SRdarts_V2 = Genotype(normal=[('sep_conv_3x3', 1), ('conv_1x1', 0), ('group_conv_3x3_2', 2), ('dil_conv_5x5', 1), ('dil_conv_5x5', 2), ('dil_conv_5x5', 3), ('sep_conv_3x3', 3), ('conv_3x3', 4)], normal_concat=range(
+    2, 6), reduce=[('group_conv_3x3_4', 1), ('sep_conv_5x5', 0), ('sep_conv_5x5', 2), ('sep_conv_3x3', 1), ('sep_conv_5x5', 2), ('conv_3x3', 3), ('conv_1x1', 4), ('dil_conv_5x5', 2)], reduce_concat=range(2, 6))

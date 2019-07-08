@@ -3,8 +3,10 @@ import torch.nn as nn
 from torch.autograd import Variable
 from model.common import drop_path
 from model.operations import *
+from model import genotypes as genotypes
 from model.genotypes import PRIMITIVES
 from model.genotypes import Genotype
+import pdb
 
 
 class Cell(nn.Module):
@@ -88,50 +90,51 @@ class AuxiliaryHeadSR(nn.Module):
 
 class Network(nn.Module):
 
-    def __init__(self, C, layers, scale, genotype):
+    def __init__(self, args):
         super(Network, self).__init__()
-        self._layers = layers
-        self._scale = scale[0]
+        self.args = args
+        self.C = args.init_channels
+        self._layers = args.layers
+        self._scale = args.scale
+        self.drop_path_prob = args.drop_path_prob
+        self.genotype = eval("genotypes.%s" % args.arch)
         # self._auxiliary = auxiliary
+        self.stem_multiplier = 3
 
-        stem_multiplier = 3
-        C_curr = stem_multiplier * C
+        C_curr = self.stem_multiplier * self.C
         self.stem = nn.Sequential(
             nn.Conv2d(3, C_curr, 3, padding=1, bias=False),
             nn.BatchNorm2d(C_curr)
         )
 
-        C_prev_prev, C_prev, C_curr = C_curr, C_curr, C
+        C_prev_prev, C_prev, C_curr = C_curr, C_curr, self.C
         self.cells = nn.ModuleList()
         reduction_prev = False
-        for i in range(layers):
-            if i in [layers // 3, 2 * layers//3]:
+        for i in range(self._layers):
+            if i in [self._layers // 3, 2 * self._layers//3]:
                 C_curr *= 2
                 reduction = True
             else:
                 reduction = False
-            cell = Cell(genotype, C_prev_prev, C_prev,
+            cell = Cell(self.genotype, C_prev_prev, C_prev,
                         C_curr, reduction, reduction_prev)
             reduction_prev = reduction
             self.cells += [cell]
-            C_prev_prev, C_prev = C_prev, cell.multiplier*C_curr
+            C_prev_prev, C_prev = C_prev, cell.multiplier * C_curr
             # if i == 2*layers//3:
             #     C_to_auxiliary = C_prev
 
         # if auxiliary:
         #     self.auxiliary_head = AuxiliaryHeadSR(
         #         C_to_auxiliary, num_classes)
-
-        # self.global_pooling = nn.AdaptiveAvgPool2d(1)
-        # self.classifier = nn.Linear(C_prev, num_classes)
         self.channel_reducer = nn.Sequential(
-            nn.Conv2d(576, 3, 3, padding=1, bias=False),
+            nn.Conv2d(self.C*16, 3, 3, padding=1, bias=False),
             nn.BatchNorm2d(3)
         )
-        self.upsampler = nn.UpsamplingBilinear2d(scale_factor=self._scale)
 
     def forward(self, input):
         # logits_aux = None
+        # pdb.set_trace()
         s0 = s1 = self.stem(input)
         for i, cell in enumerate(self.cells):
             s0, s1 = s1, cell(s0, s1, self.drop_path_prob)
@@ -141,8 +144,8 @@ class Network(nn.Module):
         out = self.channel_reducer(s1)
 
         h, w = input.size()[2], input.size()[3]
-        resizer = nn.UpsamplingBilinear2d(size=(h, w))
-        out_resize = resizer(out)
-
-        logits = self.upsampler(out_resize)
+        resizer = nn.UpsamplingBilinear2d(
+            size=(self._scale[0]*h, self._scale[0]*w)
+        )
+        logits = resizer(out)
         return logits

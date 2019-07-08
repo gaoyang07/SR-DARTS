@@ -4,8 +4,12 @@ import math
 import time
 import cv2
 import datetime
+from multiprocessing import Process
+from multiprocessing import Queue
+
 import scipy.misc as misc
 import numpy as np
+import imageio
 import matplotlib.pyplot as plt
 
 import torch
@@ -81,10 +85,15 @@ class checkpoint():
                 f.write('{}: {}\n'.format(arg, getattr(args, arg)))
             f.write('\n')
 
+        self.n_processes = 8
+
+    def get_path(self, *subdir):
+        return os.path.join(self.dir, *subdir)
+
     def save(self, trainer, epoch, is_best=False):
-        trainer.model.save(self.dir, epoch, is_best=is_best)
+        # trainer.model.save(self.dir, epoch, is_best=is_best)
         trainer.loss.save(self.dir)
-        trainer.loss.plot_loss(self.dir, epoch)
+        # trainer.loss.plot_loss(self.dir, epoch)
 
         self.plot_psnr(epoch)
         torch.save(self.log, os.path.join(self.dir, 'psnr_log.pt'))
@@ -124,6 +133,28 @@ class checkpoint():
         plt.savefig('{}/test_{}.pdf'.format(self.dir, self.args.data_test))
         plt.close(fig)
 
+    def begin_background(self):
+        self.queue = Queue()
+
+        def bg_target(queue):
+            while True:
+                if not queue.empty():
+                    filename, tensor = queue.get()
+                    if filename is None: break
+                    imageio.imwrite(filename, tensor.numpy())
+
+        self.process = [
+            Process(target=bg_target, args=(self.queue,)) \
+            for _ in range(self.n_processes)
+        ]
+
+        for p in self.process: p.start()
+
+    def end_background(self):
+        for _ in range(self.n_processes): self.queue.put((None, None))
+        while not self.queue.empty(): time.sleep(1)
+        for p in self.process: p.join()
+
     def save_results(self, filename, save_list, scale):
         filename = '{}/results/{}_x{}_'.format(self.dir, filename, scale)
         postfix = ('SR', 'LR', 'HR')
@@ -139,9 +170,6 @@ def quantize(img, rgb_range):
 
 
 def calc_psnr(sr, hr, scale, rgb_range, benchmark=False):
-    # print(sr.size())
-    # print(hr.size())
-    # pdb.set_trace()
     diff = (sr - hr).data.div(rgb_range)
     if benchmark:
         shave = scale
