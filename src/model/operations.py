@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 OPS = {
     'none': lambda C, stride, affine: Zero(stride),
@@ -120,6 +121,31 @@ class FactorizedReduce(nn.Module):
 
     def forward(self, x):
         x = self.relu(x)
-        out = torch.cat([self.conv_1(x), self.conv_2(x[:, :, 1:, 1:])], dim=1)
+        
+        if self.conv_1(x).size() == self.conv_2(x[:, :, 1:, 1:]).size():
+            out = torch.cat([self.conv_1(x), self.conv_2(x[:, :, 1:, 1:])], dim=1)
+        else:
+            new_conv_1 = self.conv_1(x)
+            new_conv_2 = self.conv_2(x[:, :, 1:, 1:])
+            if self.conv_1(x).size()[2] % 2 == 0:
+                new_conv_2 = F.interpolate(
+                    self.conv_2(x[:, :, 1:, 1:]),
+                    size=(self.conv_1(x).size()[2], self.conv_1(x).size()[3]),
+                    mode="bilinear",
+                    align_corners=False
+                )
+            elif self.conv_2(x[:, :, 1:, 1:]).size()[2] % 2 == 0:
+                new_conv_1 = F.interpolate(
+                    self.conv_1(x),
+                    size=(self.conv_2(x[:, :, 1:, 1:]).size()[2], self.conv_2(x[:, :, 1:, 1:]).size()[3]),
+                    mode="bilinear",
+                    align_corners=False
+                )
+            else:
+                raise NotImplementedError("Error!")
+            assert new_conv_1.size() == new_conv_2.size()
+            # print("-----------------"+str(new_conv_1.size()))
+            # print("-----------------"+str(new_conv_2.size()))
+            out = torch.cat([new_conv_1, new_conv_2], dim=1)
         out = self.bn(out)
         return out
