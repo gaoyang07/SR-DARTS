@@ -65,17 +65,13 @@ class Network(nn.Module):
     Network
     """
     def __init__(self, args, loss):
-        # model = Network(args.init_channels, args.layers, args.scale, criterion)
-    # def __init__(self, C, layers, scale, criterion, steps=4, multiplier=4, stem_multiplier=3):
         super(Network, self).__init__()
         self.args = args
         self._C = args.init_channels
         self._layers = args.layers
         self._scale = args.scale
         self._criterion = loss
-        # self._steps = args.steps if args.steps else 4
         self._steps = 4
-        # self._multiplier = args.multiplier if args.multiplier else 4
         self._multiplier = 4
         self.stem_multiplier = 3
 
@@ -100,14 +96,14 @@ class Network(nn.Module):
             self.cells += [cell]
             C_prev_prev, C_prev = C_prev, self._multiplier * C_curr
 
-        # self.global_pooling = nn.AdaptiveAvgPool2d(1)
-        # self.classifier = nn.Linear(C_prev, num_classes)
         self.channel_reducer = nn.Sequential(
             nn.Conv2d(self._C*16, 3, 3, padding=1, bias=False),
             nn.BatchNorm2d(3)
         )
         # self.upsampler = nn.UpsamplingBilinear2d(scale_factor=self._scale)
-        self.upsampler = nn.UpsamplingBilinear2d(size=(args.patch_size, args.patch_size))
+        self.upsampler = nn.UpsamplingBilinear2d(
+            size=(args.patch_size, args.patch_size)
+        )
 
         self._initialize_alphas()
 
@@ -118,7 +114,6 @@ class Network(nn.Module):
         return model_new
 
     def forward(self, input):
-        # I consider this 'stem' as the feature extractor...?
         s0 = s1 = self.stem(input)
         for i, cell in enumerate(self.cells):
             if cell.reduction:
@@ -126,8 +121,6 @@ class Network(nn.Module):
             else:
                 weights = F.softmax(self.alphas_normal, dim=-1)
             s0, s1 = s1, cell(s0, s1, weights)
-        # out = self.global_pooling(s1)
-        # logits = self.classifier(out.view(out.size(0), -1))
         out = self.channel_reducer(s1)
         logits = self.upsampler(out)
         return logits

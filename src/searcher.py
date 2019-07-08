@@ -72,19 +72,9 @@ class Searcher():
 
             self.optimizer.zero_grad()
 
-            # pdb.set_trace()
-            # output is the high-resolution image
             logits = self.model(_input)
             loss = self.loss(logits, _target)
 
-            # In Meta-SR
-            # if loss.item() < self.args.skip_threshold * self.error_last:
-            #     loss.backward()
-            #     self.optimizer.step()
-            # else:
-            #     print('Skip this batch {}! (Loss: {})'.format(
-            #         batch + 1, loss.item()
-            #     ))
             loss.backward()
 
             # TODO:check the diff between clip_grad_norm and clip_grad_value_(in EDSR)
