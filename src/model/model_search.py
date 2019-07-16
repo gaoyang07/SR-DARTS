@@ -28,20 +28,18 @@ class Cell(nn.Module):
         super(Cell, self).__init__()
         self.reduction = reduction
 
-        if reduction_prev:
-            self.preprocess0 = FactorizedReduce(C_prev_prev, C, affine=False)
-        else:
-            self.preprocess0 = ReLUConvBN(
-                C_prev_prev, C, 1, 1, 0, affine=False)
-        self.preprocess1 = ReLUConvBN(C_prev, C, 1, 1, 0, affine=False)
+        self.preprocess0 = ReLUConv(C_prev_prev, C, 3, 1, 1, affine=False)
+        self.preprocess1 = ReLUConv(C_prev, C, 3, 1, 1, affine=False)
         self._steps = steps
         self._multiplier = multiplier
 
         self._ops = nn.ModuleList()
-        self._bns = nn.ModuleList()
+        # self._bns = nn.ModuleList()
         for i in range(self._steps):
             for j in range(2+i):
-                stride = 2 if reduction and j < 2 else 1
+                # cancel the reduction cell
+                # stride = 1 if reduction and j < 2 else 1
+                stride = 1
                 op = MixedOp(C, stride)
                 self._ops.append(op)
 
@@ -69,7 +67,7 @@ class Network(nn.Module):
         self.args = args
         self._C = args.init_channels
         self._layers = args.layers
-        self._scale = args.scale
+        self._scale = args.scale[0]
         self._criterion = loss
         self._steps = 4
         self._multiplier = 4
@@ -78,31 +76,28 @@ class Network(nn.Module):
         C_curr = self.stem_multiplier * self._C
         self.stem = nn.Sequential(
             nn.Conv2d(3, C_curr, 3, padding=1, bias=False),
-            nn.BatchNorm2d(C_curr)
         )
 
         C_prev_prev, C_prev, C_curr = C_curr, C_curr, self._C
         self.cells = nn.ModuleList()
         reduction_prev = False
         for i in range(self._layers):
-            if i in [self._layers // 3, 2 * self._layers//3]:
-                C_curr *= 2
-                reduction = True
-            else:
-                reduction = False
+            # if i in [self._layers // 3, 2 * self._layers//3]:
+            #     # C_curr *= 2
+            #     reduction = True
+            # else:
+            #     reduction = False
+            reduction = False
             cell = Cell(self._steps, self._multiplier, C_prev_prev, C_prev,
                         C_curr, reduction, reduction_prev)
             reduction_prev = reduction
             self.cells += [cell]
             C_prev_prev, C_prev = C_prev, self._multiplier * C_curr
 
+        self.upsampler = Upsampler(C_prev, C_prev, 3,
+                                   stride=1, padding=1, scale=self._scale)
         self.channel_reducer = nn.Sequential(
-            nn.Conv2d(self._C*16, 3, 3, padding=1, bias=False),
-            nn.BatchNorm2d(3)
-        )
-        # self.upsampler = nn.UpsamplingBilinear2d(scale_factor=self._scale)
-        self.upsampler = nn.UpsamplingBilinear2d(
-            size=(args.patch_size, args.patch_size)
+            nn.Conv2d(C_prev, args.n_colors, 3, padding=1, bias=False)
         )
 
         self._initialize_alphas()
@@ -116,13 +111,14 @@ class Network(nn.Module):
     def forward(self, input):
         s0 = s1 = self.stem(input)
         for i, cell in enumerate(self.cells):
-            if cell.reduction:
-                weights = F.softmax(self.alphas_reduce, dim=-1)
-            else:
-                weights = F.softmax(self.alphas_normal, dim=-1)
+            # if cell.reduction:
+            #     weights = F.softmax(self.alphas_reduce, dim=-1)
+            # else:
+            #     weights = F.softmax(self.alphas_normal, dim=-1)
+            weights = F.softmax(self.alphas_normal, dim=-1)
             s0, s1 = s1, cell(s0, s1, weights)
-        out = self.channel_reducer(s1)
-        logits = self.upsampler(out)
+        out = self.upsampler(s1)
+        logits = self.channel_reducer(out)
         return logits
 
     def _loss(self, input, target):
@@ -135,11 +131,11 @@ class Network(nn.Module):
 
         self.alphas_normal = Variable(
             1e-3 * torch.randn(k, num_ops).cuda(), requires_grad=True)
-        self.alphas_reduce = Variable(
-            1e-3 * torch.randn(k, num_ops).cuda(), requires_grad=True)
+        # self.alphas_reduce = Variable(
+        #     1e-3 * torch.randn(k, num_ops).cuda(), requires_grad=True)
         self._arch_parameters = [
             self.alphas_normal,
-            self.alphas_reduce,
+            # self.alphas_reduce,
         ]
 
     def arch_parameters(self):
@@ -169,12 +165,12 @@ class Network(nn.Module):
 
         gene_normal = _parse(
             F.softmax(self.alphas_normal, dim=-1).data.cpu().numpy())
-        gene_reduce = _parse(
-            F.softmax(self.alphas_reduce, dim=-1).data.cpu().numpy())
+        # gene_reduce = _parse(
+        #     F.softmax(self.alphas_reduce, dim=-1).data.cpu().numpy())
 
         concat = range(2+self._steps-self._multiplier, self._steps+2)
         genotype = Genotype(
             normal=gene_normal, normal_concat=concat,
-            reduce=gene_reduce, reduce_concat=concat
+            # reduce=gene_reduce, reduce_concat=concat
         )
         return genotype

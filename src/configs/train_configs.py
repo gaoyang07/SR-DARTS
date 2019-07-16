@@ -3,13 +3,14 @@ import argparse
 
 parser = argparse.ArgumentParser("SR-DARTS")
 
-parser.add_argument('--arch', type=str, default='SRdarts_V2',
+parser.add_argument('--arch', type=str, default='SRdarts_V1',
                     help='which architecture to use')
 parser.add_argument('--checkpoint', action='store_true', default=False,
                     help='choose to keep training using the former model')
 
-parser.add_argument('--report_freq', type=float,
-                    default=50, help='report frequency')
+parser.add_argument('--search', action="store_true", default=False,
+                    help='the searching process.')
+
 parser.add_argument('--init_channels', type=int,
                     default=8, help='num of init channels')
 parser.add_argument('--layers', type=int, default=4,
@@ -49,7 +50,7 @@ parser.add_argument('--data_range', type=str, default='1-800/801-810',
                     help='train/test data range')
 parser.add_argument('--ext', type=str, default='sep',
                     help='dataset file extension')
-parser.add_argument('--scale', type=str, default='2,3,4',
+parser.add_argument('--scale', type=str, default='2+3+4',
                     help='super resolution scale')
 parser.add_argument('--patch_size', type=int, default=64,
                     help='output patch size')
@@ -65,21 +66,8 @@ parser.add_argument('--no_augment', action='store_true',
 # Model specifications
 parser.add_argument('--model', default='SRdarts',
                     help='model name')
-
-parser.add_argument('--act', type=str, default='relu',
-                    help='activation function')
 parser.add_argument('--pre_train', type=str, default='.',
                     help='pre-trained model directory')
-parser.add_argument('--extend', type=str, default='.',
-                    help='pre-trained model directory')
-parser.add_argument('--n_resblocks', type=int, default=16,
-                    help='number of residual blocks')
-parser.add_argument('--n_feats', type=int, default=64,
-                    help='number of feature maps')
-parser.add_argument('--res_scale', type=float, default=1,
-                    help='residual scaling')
-parser.add_argument('--shift_mean', default=True,
-                    help='subtract pixel mean from the input')
 parser.add_argument('--dilation', action='store_true',
                     help='use dilated convolution')
 parser.add_argument('--precision', type=str, default='single',
@@ -93,7 +81,7 @@ parser.add_argument('--test_every', type=int, default=1000,
                     help='do test per every N batches')
 parser.add_argument('--epochs', type=int, default=1000,
                     help='number of epochs to train')
-parser.add_argument('--batch_size', type=int, default=128,
+parser.add_argument('--batch_size', type=int, default=32,
                     help='input batch size for training')
 parser.add_argument('--split_batch', type=int, default=1,
                     help='split the batch into smaller chunks')
@@ -105,9 +93,9 @@ parser.add_argument('--gan_k', type=int, default=1,
                     help='k value for adversarial loss')
 
 # Optimization specifications
-parser.add_argument('--lr', type=float, default=1e-4,
+parser.add_argument('--lr', type=float, default=5e-3,
                     help='learning rate')
-parser.add_argument('--lr_decay', type=int, default=200,
+parser.add_argument('--lr_decay', type=int, default=100,
                     help='learning rate decay per N epochs')
 parser.add_argument('--decay_type', type=str, default='step',
                     help='learning rate decay type')
@@ -136,7 +124,7 @@ parser.add_argument('--skip_threshold', type=float, default='1e6',
                     help='skipping batch that has large error')
 
 # Log specifications
-parser.add_argument('--save', type=str, default='srdarts',
+parser.add_argument('--save', type=str, default='train',
                     help='file name to save')
 parser.add_argument('--load', type=str, default='.',
                     help='file name to load')
@@ -149,14 +137,6 @@ parser.add_argument('--print_every', type=int, default=100,
 parser.add_argument('--save_results', action='store_true',
                     help='save output results')
 
-# parser.add_argument('--initial_temp', type=float, default=1.3,
-#                     help='initial softmax temperature')
-# parser.add_argument('--temp_beta', type=float, default=0.95,
-#                     help='the ß of temperature in ASAP')
-# parser.add_argument('--anneal_rate', type=float, default=0.00003,
-#                     help='annealation rate of softmax temperature')
-# parser.add_argument('--threshold', type=float, default=0.4,
-#                     help='threshold for pruning the weights in mixed ops,')
 args = parser.parse_args()
 
 args.scale = list(map(lambda x: int(x), args.scale.split('+')))

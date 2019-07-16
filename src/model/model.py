@@ -6,7 +6,6 @@ from model.operations import *
 from model import genotypes as genotypes
 from model.genotypes import PRIMITIVES
 from model.genotypes import Genotype
-import pdb
 
 
 class Cell(nn.Module):
@@ -15,18 +14,22 @@ class Cell(nn.Module):
         super(Cell, self).__init__()
         # print(C_prev_prev, C_prev, C)
 
-        if reduction_prev:
-            self.preprocess0 = FactorizedReduce(C_prev_prev, C)
-        else:
-            self.preprocess0 = ReLUConvBN(C_prev_prev, C, 1, 1, 0)
-        self.preprocess1 = ReLUConvBN(C_prev, C, 1, 1, 0)
+        # if reduction_prev:
+        #     self.preprocess0 = FactorizedReduce(C_prev_prev, C)
+        # else:
+        #     self.preprocess0 = ReLUConvBN(C_prev_prev, C, 1, 1, 0)
+        self.preprocess0 = ReLUConv(C_prev_prev, C, 1, 1, 0)
+        self.preprocess1 = ReLUConv(C_prev, C, 1, 1, 0)
 
-        if reduction:
-            op_names, indices = zip(*genotype.reduce)
-            concat = genotype.reduce_concat
-        else:
-            op_names, indices = zip(*genotype.normal)
-            concat = genotype.normal_concat
+        # if reduction:
+        #     op_names, indices = zip(*genotype.reduce)
+        #     concat = genotype.reduce_concat
+        # else:
+        #     op_names, indices = zip(*genotype.normal)
+        #     concat = genotype.normal_concat
+        op_names, indices = zip(*genotype.normal)
+        concat = genotype.normal_concat
+
         self._compile(C, op_names, indices, concat, reduction)
 
     def _compile(self, C, op_names, indices, concat, reduction):
@@ -37,7 +40,8 @@ class Cell(nn.Module):
 
         self._ops = nn.ModuleList()
         for name, index in zip(op_names, indices):
-            stride = 2 if reduction and index < 2 else 1
+            # stride = 2 if reduction and index < 2 else 1
+            stride = 1
             op = OPS[name](C, stride, True)
             self._ops += [op]
         self._indices = indices
@@ -95,7 +99,7 @@ class Network(nn.Module):
         self.args = args
         self.C = args.init_channels
         self._layers = args.layers
-        self._scale = args.scale
+        self._scale = args.scale[0]
         self.drop_path_prob = args.drop_path_prob
         self.genotype = eval("genotypes.%s" % args.arch)
         # self._auxiliary = auxiliary
@@ -103,19 +107,19 @@ class Network(nn.Module):
 
         C_curr = self.stem_multiplier * self.C
         self.stem = nn.Sequential(
-            nn.Conv2d(3, C_curr, 3, padding=1, bias=False),
-            nn.BatchNorm2d(C_curr)
+            nn.Conv2d(3, C_curr, 3, padding=1, bias=False)
         )
 
         C_prev_prev, C_prev, C_curr = C_curr, C_curr, self.C
         self.cells = nn.ModuleList()
         reduction_prev = False
         for i in range(self._layers):
-            if i in [self._layers // 3, 2 * self._layers//3]:
-                C_curr *= 2
-                reduction = True
-            else:
-                reduction = False
+            # if i in [self._layers // 3, 2 * self._layers//3]:
+            #     C_curr *= 2
+            #     reduction = True
+            # else:
+            #     reduction = False
+            reduction = False
             cell = Cell(self.genotype, C_prev_prev, C_prev,
                         C_curr, reduction, reduction_prev)
             reduction_prev = reduction
@@ -127,25 +131,26 @@ class Network(nn.Module):
         # if auxiliary:
         #     self.auxiliary_head = AuxiliaryHeadSR(
         #         C_to_auxiliary, num_classes)
+
+        self.upsampler = Upsampler(C_prev, C_prev, 3,
+                                   stride=1, padding=1, scale=self._scale)
         self.channel_reducer = nn.Sequential(
-            nn.Conv2d(self.C*16, 3, 3, padding=1, bias=False),
-            nn.BatchNorm2d(3)
+            nn.Conv2d(C_prev, args.n_colors, 3, padding=1, bias=False)
         )
 
     def forward(self, input):
         # logits_aux = None
-        # pdb.set_trace()
         s0 = s1 = self.stem(input)
         for i, cell in enumerate(self.cells):
             s0, s1 = s1, cell(s0, s1, self.drop_path_prob)
             # if i == 2*self._layers//3:
             #     if self._auxiliary and self.training:
             #         logits_aux = self.auxiliary_head(s1)
-        out = self.channel_reducer(s1)
-
-        h, w = input.size()[2], input.size()[3]
-        resizer = nn.UpsamplingBilinear2d(
-            size=(self._scale[0]*h, self._scale[0]*w)
-        )
-        logits = resizer(out)
+        out = self.upsampler(s1)
+        logits = self.channel_reducer(out)
+        # h, w = input.size()[2], input.size()[3]
+        # resizer = nn.UpsamplingBilinear2d(
+        #     size=(self._scale[0]*h, self._scale[0]*w)
+        # )
+        # logits = resizer(out)
         return logits

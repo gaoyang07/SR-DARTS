@@ -27,9 +27,6 @@ class Searcher():
         self.optimizer = utils.make_optimizer(args, self.model)
         self.scheduler = utils.make_scheduler(args, self.optimizer)
 
-        # if self.args.load != '':
-        #     self.optimizer.load(ckp.dir, epoch=len(ckp.log))
-
         # if not args.cpu and args.n_GPUs > 1:
         #     self.model = nn.DataParallel(self.model, range(args.n_GPUs))
 
@@ -59,13 +56,14 @@ class Searcher():
             timer_data.hold()
             timer_model.tic()
 
-            _input = _input.clone().detach().requires_grad_(False).cuda()
-            _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
+            # _input = _input.clone().detach().requires_grad_(False).cuda()
+            # _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
             input_search, target_search, _, _ = next(iter(self.loader_valid))
-            input_search = input_search.clone().detach().requires_grad_(False).cuda()
-            target_search = target_search.clone().detach(
-            ).requires_grad_(False).cuda(non_blocking=True)
+            input_search, target_search = self.prepare(input_search, target_search)
+            # input_search = input_search.clone().detach().requires_grad_(False).cuda()
+            # target_search = target_search.clone().detach(
+            # ).requires_grad_(False).cuda(non_blocking=True)
 
             self.architect.step(_input, _target, input_search, target_search,
                                 lr, self.optimizer, unrolled=self.args.unrolled)
@@ -111,9 +109,9 @@ class Searcher():
             for batch, (_input, _target, _, idx_scale) in enumerate(self.loader_valid):
                 _input, _target = self.prepare(_input, _target)
 
-                # TODO: check whether it's ness or not
-                _input = _input.clone().detach().requires_grad_(False).cuda()
-                _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
+                # # TODO: check whether it's ness or not
+                # _input = _input.clone().detach().requires_grad_(False).cuda()
+                # _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
                 timer_valid.tic()
                 logits = self.model(_input)

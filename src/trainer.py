@@ -59,8 +59,8 @@ class Trainer():
             timer_model.tic()
 
             # TODO: check whether it's ness or not
-            _input = _input.clone().detach().requires_grad_(False).cuda()
-            _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
+            # _input = _input.clone().detach().requires_grad_(False).cuda()
+            # _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
             self.optimizer.zero_grad()
 
@@ -128,13 +128,17 @@ class Trainer():
                     logits = utils.quantize(logits, self.args.rgb_range)
                     
                     save_list = [logits]
+                    if d.dataset.name in ['Set5', 'Set14', 'B100', 'Urban100']:
+                        benchmark = True
+                    else:
+                        benchmark = False
                     self.ckp.log[-1, idx_data, idx_scale] += utils.calc_psnr(
                         logits, _target, scale, self.args.rgb_range,
-                        benchmark=d.dataset.benchmark
+                        benchmark=benchmark
                     )
                     eval_acc_ssim += utils.calc_ssim(
                         logits, _target, scale,
-                        benchmark=d.dataset.benchmark
+                        benchmark=benchmark
                     )
                     save_list.extend([_input, _target])
 

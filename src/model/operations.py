@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,8 +8,8 @@ OPS = {
     'avg_pool_3x3': lambda C, stride, affine: nn.AvgPool2d(3, stride=stride, padding=1, count_include_pad=False),
     'max_pool_3x3': lambda C, stride, affine: nn.MaxPool2d(3, stride=stride, padding=1),
     'skip_connect': lambda C, stride, affine: Identity() if stride == 1 else FactorizedReduce(C, C, affine=affine),
-    'conv_1x1': lambda C, stride, affine: ReLUConvBN(C, C, 1, stride, 0, affine=affine),
-    'conv_3x3': lambda C, stride, affine: ReLUConvBN(C, C, 3, stride, 1, affine=affine),
+    'conv_1x1': lambda C, stride, affine: ReLUConv(C, C, 1, stride, 0, affine=affine),
+    'conv_3x3': lambda C, stride, affine: ReLUConv(C, C, 3, stride, 1, affine=affine),
     'sep_conv_3x3': lambda C, stride, affine: SepConv(C, C, 3, stride, 1, affine=affine),
     'sep_conv_5x5': lambda C, stride, affine: SepConv(C, C, 5, stride, 2, affine=affine),
     'sep_conv_7x7': lambda C, stride, affine: SepConv(C, C, 7, stride, 3, affine=affine),
@@ -19,15 +20,14 @@ OPS = {
 }
 
 
-class ReLUConvBN(nn.Module):
+class ReLUConv(nn.Module):
 
     def __init__(self, C_in, C_out, kernel_size, stride, padding, affine=True):
-        super(ReLUConvBN, self).__init__()
+        super(ReLUConv, self).__init__()
         self.op = nn.Sequential(
             nn.ReLU(inplace=False),
             nn.Conv2d(C_in, C_out, kernel_size, stride=stride,
                       padding=padding, bias=False),
-            nn.BatchNorm2d(C_out, affine=affine)
         )
 
     def forward(self, x):
@@ -43,7 +43,6 @@ class DilConv(nn.Module):
             nn.Conv2d(C_in, C_in, kernel_size=kernel_size, stride=stride,
                       padding=padding, dilation=dilation, groups=C_in, bias=False),
             nn.Conv2d(C_in, C_out, kernel_size=1, padding=0, bias=False),
-            nn.BatchNorm2d(C_out, affine=affine),
         )
 
     def forward(self, x):
@@ -59,12 +58,10 @@ class SepConv(nn.Module):
             nn.Conv2d(C_in, C_in, kernel_size=kernel_size,
                       stride=stride, padding=padding, groups=C_in, bias=False),
             nn.Conv2d(C_in, C_in, kernel_size=1, padding=0, bias=False),
-            nn.BatchNorm2d(C_in, affine=affine),
             nn.ReLU(inplace=False),
             nn.Conv2d(C_in, C_in, kernel_size=kernel_size, stride=1,
                       padding=padding, groups=C_in, bias=False),
             nn.Conv2d(C_in, C_out, kernel_size=1, padding=0, bias=False),
-            nn.BatchNorm2d(C_out, affine=affine),
         )
 
     def forward(self, x):
@@ -79,8 +76,34 @@ class GroupConv(nn.Module):
             nn.ReLU(inplace=False),
             nn.Conv2d(C_in, C_in, kernel_size=kernel_size,
                       stride=stride, padding=padding, groups=groups, bias=False),
-            nn.BatchNorm2d(C_in, affine=affine),
         )
+
+    def forward(self, x):
+        return self.op(x)
+
+
+class Upsampler(nn.Module):
+
+    def __init__(self, C_in, C_out, kernel_size, stride, padding, scale, affine=True):
+        super(Upsampler, self).__init__()
+
+        unit = []
+        if (scale & (scale - 1)) == 0:
+            for _ in range(int(math.log(scale, 2))):
+                unit.append(nn.ReLU(inplace=False))
+                unit.append(nn.Conv2d(C_in, 4*C_out, kernel_size, stride=stride,
+                                   padding=padding, bias=False))
+                unit.append(nn.PixelShuffle(2))
+
+        elif scale == 3:
+            unit.append(nn.ReLU(inplace=False))
+            unit.append(nn.Conv2d(C_in, 9*C_out, kernel_size, stride=stride,
+                               padding=padding, bias=False))
+            unit.append(nn.PixelShuffle(3))
+        else:
+            raise NotImplementedError
+
+        self.op = nn.Sequential(*unit)
 
     def forward(self, x):
         return self.op(x)
@@ -117,35 +140,20 @@ class FactorizedReduce(nn.Module):
                                 stride=2, padding=0, bias=False)
         self.conv_2 = nn.Conv2d(C_in, C_out // 2, 1,
                                 stride=2, padding=0, bias=False)
-        self.bn = nn.BatchNorm2d(C_out, affine=affine)
 
     def forward(self, x):
         x = self.relu(x)
-        
+
         if self.conv_1(x).size() == self.conv_2(x[:, :, 1:, 1:]).size():
-            out = torch.cat([self.conv_1(x), self.conv_2(x[:, :, 1:, 1:])], dim=1)
+            out = torch.cat(
+                [self.conv_1(x), self.conv_2(x[:, :, 1:, 1:])], dim=1)
         else:
-            new_conv_1 = self.conv_1(x)
-            new_conv_2 = self.conv_2(x[:, :, 1:, 1:])
-            if self.conv_1(x).size()[2] % 2 == 0:
-                new_conv_2 = F.interpolate(
-                    self.conv_2(x[:, :, 1:, 1:]),
-                    size=(self.conv_1(x).size()[2], self.conv_1(x).size()[3]),
-                    mode="bilinear",
-                    align_corners=False
-                )
-            elif self.conv_2(x[:, :, 1:, 1:]).size()[2] % 2 == 0:
-                new_conv_1 = F.interpolate(
-                    self.conv_1(x),
-                    size=(self.conv_2(x[:, :, 1:, 1:]).size()[2], self.conv_2(x[:, :, 1:, 1:]).size()[3]),
-                    mode="bilinear",
-                    align_corners=False
-                )
-            else:
-                raise NotImplementedError("Error!")
-            assert new_conv_1.size() == new_conv_2.size()
-            # print("-----------------"+str(new_conv_1.size()))
-            # print("-----------------"+str(new_conv_2.size()))
-            out = torch.cat([new_conv_1, new_conv_2], dim=1)
-        out = self.bn(out)
+            new_conv_2 = F.interpolate(
+                self.conv_2(x[:, :, 1:, 1:]),
+                size=(self.conv_1(x).size()[2], self.conv_1(x).size()[3]),
+                mode="bilinear",
+                align_corners=False
+            )
+            assert self.conv_1(x).size() == new_conv_2.size()
+            out = torch.cat([self.conv_1(x), new_conv_2], dim=1)
         return out

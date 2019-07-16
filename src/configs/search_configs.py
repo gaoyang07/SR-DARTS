@@ -15,8 +15,8 @@ parser.add_argument('--arch_learning_rate', type=float, default=3e-4,
                     help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3,
                     help='weight decay for arch encoding')
-parser.add_argument('--report_freq', type=float,
-                    default=50, help='report frequency')
+# parser.add_argument('--report_freq', type=float,
+#                     default=50, help='report frequency')
 parser.add_argument('--init_channels', type=int,
                     default=8, help='num of init channels')
 parser.add_argument('--layers', type=int, default=4,
@@ -34,19 +34,6 @@ parser.add_argument('--grad_clip', type=float,
 #                     help='portion of training data')
 parser.add_argument('--unrolled', action='store_true', default=False,
                     help='use one-step unrolled validation loss')
-
-# parser.add_argument('--initial_temp', type=float, default=1.3,
-#                     help='initial softmax temperature')
-# parser.add_argument('--temp_beta', type=float, default=0.95,
-#                     help='the ß of temperature in ASAP')
-# parser.add_argument('--anneal_rate', type=float, default=0.00003,
-#                     help='annealation rate of softmax temperature')
-# parser.add_argument('--threshold', type=float, default=0.4,
-#                     help='threshold for pruning the weights in mixed ops,')
-# parser.add_argument('--debug', action='store_true',
-#                     help='Enables debug mode')
-# parser.add_argument('--template', default='.',
-#                     help='You can set various templates in option.py')
 
 # Hardware specifications
 parser.add_argument('--n_threads', type=int, default=4,
@@ -94,16 +81,6 @@ parser.add_argument('--act', type=str, default='relu',
                     help='activation function')
 parser.add_argument('--pre_train', type=str, default='.',
                     help='pre-trained model directory')
-parser.add_argument('--extend', type=str, default='.',
-                    help='pre-trained model directory')
-parser.add_argument('--n_resblocks', type=int, default=16,
-                    help='number of residual blocks')
-parser.add_argument('--n_feats', type=int, default=64,
-                    help='number of feature maps')
-parser.add_argument('--res_scale', type=float, default=1,
-                    help='residual scaling')
-parser.add_argument('--shift_mean', default=True,
-                    help='subtract pixel mean from the input')
 parser.add_argument('--dilation', action='store_true',
                     help='use dilated convolution')
 parser.add_argument('--precision', type=str, default='single',
@@ -115,9 +92,9 @@ parser.add_argument('--reset', action='store_true',
                     help='reset the training')
 parser.add_argument('--test_every', type=int, default=1000,
                     help='do test per every N batches')
-parser.add_argument('--epochs', type=int, default=1000,
+parser.add_argument('--epochs', type=int, default=400,
                     help='number of epochs to train')
-parser.add_argument('--batch_size', type=int, default=128,
+parser.add_argument('--batch_size', type=int, default=32,
                     help='input batch size for training')
 parser.add_argument('--split_batch', type=int, default=1,
                     help='split the batch into smaller chunks')
@@ -129,9 +106,9 @@ parser.add_argument('--gan_k', type=int, default=1,
                     help='k value for adversarial loss')
 
 # Optimization specifications
-parser.add_argument('--lr', type=float, default=1e-4,
+parser.add_argument('--lr', type=float, default=5e-3,
                     help='learning rate')
-parser.add_argument('--lr_decay', type=int, default=200,
+parser.add_argument('--lr_decay', type=int, default=100,
                     help='learning rate decay per N epochs')
 parser.add_argument('--decay_type', type=str, default='step',
                     help='learning rate decay type')
@@ -160,7 +137,7 @@ parser.add_argument('--skip_threshold', type=float, default='1e6',
                     help='skipping batch that has large error')
 
 # Log specifications
-parser.add_argument('--save', type=str, default='srdarts',
+parser.add_argument('--save', type=str, default='search',
                     help='file name to save')
 parser.add_argument('--load', type=str, default='.',
                     help='file name to load')
