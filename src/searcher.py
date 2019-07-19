@@ -19,8 +19,7 @@ class Searcher():
         self.ckp = ckp
         self.scale = args.scale
         self.loader_search = loader.loader_train
-        self.loader_valid = loader.loader_test[0]
-        # self.loader_test = loader.loader_test
+        self.loader_valid = loader.loader_valid
         self.model = model
         self.loss = loss
         self.architect = Architect(self.model, self.args)
@@ -72,7 +71,6 @@ class Searcher():
 
             logits = self.model(_input)
             loss = self.loss(logits, _target)
-
             loss.backward()
 
             # TODO:check the diff between clip_grad_norm and clip_grad_value_(in EDSR)
@@ -96,7 +94,6 @@ class Searcher():
         self.error_last = self.loss.log[-1, -1]
 
     def valid(self):
-        # torch.set_grad_enabled(False)
         epoch = self.scheduler.last_epoch + 1
         self.ckp.write_log('\n\nEvaluation during search process:')
         self.ckp.add_log(torch.zeros(1, len(self.scale)))
@@ -118,25 +115,20 @@ class Searcher():
                 timer_valid.hold()
                 logits = utils.quantize(logits, self.args.rgb_range)
 
-                if self.loader_valid.dataset.name in ['Set5', 'Set14', 'B100', 'Urban100']:
-                    benchmark = True
-                else:
-                    benchmark = False
                 eval_psnr += utils.calc_psnr(
                     logits, _target, self.scale[idx_scale], self.args.rgb_range,
-                    benchmark=benchmark
+                    benchmark=False
                 )
                 eval_ssim += utils.calc_ssim(
                     logits, _target, self.scale[idx_scale],
-                    benchmark=benchmark
+                    benchmark=False
                 )
 
-            self.ckp.log[-1, idx_scale] = eval_psnr / \
-                len(self.loader_valid.dataset)
+            self.ckp.log[-1, idx_scale] = eval_psnr / len(self.loader_valid)
 
             best = self.ckp.log.max(0)
             self.ckp.write_log(
-                '[{} x{}]\tPSNR: {:.3f}\tSSIM: {:.4f} (best: {:.3f} @epoch {})'.format(
+                '[{} x{}]\tPSNR: {:.3f}\tSSIM: {:.4f}\t(best: {:.3f} @epoch {})'.format(
                     self.args.data_valid,
                     self.scale[idx_scale],
                     self.ckp.log[-1, idx_scale],

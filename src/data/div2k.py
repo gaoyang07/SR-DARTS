@@ -5,15 +5,23 @@ from data import srdata
 class DIV2K(srdata.SRData):
     def __init__(self, args, name='DIV2K', train=True, benchmark=False):
         data_range = [r.split('-') for r in args.data_range.split('/')]
-        if train:
-            data_range = data_range[0]
-        else:
-            if args.test_only and len(data_range) == 1:
+        if not args.search:
+            if train:
                 data_range = data_range[0]
             else:
-                data_range = data_range[1]
+                if args.test_only and len(data_range) == 1:
+                    data_range = data_range[0]
+                else:
+                    data_range = data_range[1]
+            self.begin, self.end = list(map(lambda x: int(x), data_range))
+        else:
+            self.begin, self.end = list(map(lambda x: int(x), data_range[0]))
+            if train:
+                self.end = self.end // 2
+            else:
+                self.begin = (self.end // 2) + 1
+                self.end = self.begin + 9
 
-        self.begin, self.end = list(map(lambda x: int(x), data_range))
         super(DIV2K, self).__init__(
             args, name=name, train=train, benchmark=benchmark
         )

@@ -38,6 +38,7 @@ class DataLoader(object):
                 pin_memory=True,
             )
 
+            # data_valid shouldn't be used during training process.
             for d in args.data_valid:
                 module_name = d if d.find('DIV2K-Q') < 0 else 'DIV2KJPEG'
                 m = import_module('data.' + module_name.lower())
@@ -46,11 +47,12 @@ class DataLoader(object):
             self.loader_valid = MSDataLoader(
                 args,
                 MyConcatDataset(datasets_valid),
-                batch_size=args.batch_size,
+                batch_size=1,
                 shuffle=False,
                 pin_memory=True,
             )
 
+        # data_test shouldn't be used during searching process.
         for d in args.data_test:
             if d in ['Set5', 'Set14', 'B100', 'Urban100']:
                 m = import_module('data.benchmark')

@@ -18,8 +18,8 @@ class Cell(nn.Module):
         #     self.preprocess0 = FactorizedReduce(C_prev_prev, C)
         # else:
         #     self.preprocess0 = ReLUConvBN(C_prev_prev, C, 1, 1, 0)
-        self.preprocess0 = ReLUConv(C_prev_prev, C, 1, 1, 0)
-        self.preprocess1 = ReLUConv(C_prev, C, 1, 1, 0)
+        self.preprocess0 = ReLUConv(C_prev_prev, C, 1, 1, 0, affine=False)
+        self.preprocess1 = ReLUConv(C_prev, C, 1, 1, 0, affine=False)
 
         # if reduction:
         #     op_names, indices = zip(*genotype.reduce)
@@ -148,9 +148,4 @@ class Network(nn.Module):
             #         logits_aux = self.auxiliary_head(s1)
         out = self.upsampler(s1)
         logits = self.channel_reducer(out)
-        # h, w = input.size()[2], input.size()[3]
-        # resizer = nn.UpsamplingBilinear2d(
-        #     size=(self._scale[0]*h, self._scale[0]*w)
-        # )
-        # logits = resizer(out)
         return logits

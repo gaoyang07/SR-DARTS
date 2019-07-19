@@ -15,11 +15,9 @@ parser.add_argument('--arch_learning_rate', type=float, default=3e-4,
                     help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3,
                     help='weight decay for arch encoding')
-# parser.add_argument('--report_freq', type=float,
-#                     default=50, help='report frequency')
 parser.add_argument('--init_channels', type=int,
-                    default=8, help='num of init channels')
-parser.add_argument('--layers', type=int, default=4,
+                    default=32, help='num of init channels')
+parser.add_argument('--layers', type=int, default=8,
                     help='total number of layers')
 
 parser.add_argument('--cutout', action='store_true',
@@ -90,9 +88,9 @@ parser.add_argument('--precision', type=str, default='single',
 # Training specifications
 parser.add_argument('--reset', action='store_true',
                     help='reset the training')
-parser.add_argument('--test_every', type=int, default=1000,
+parser.add_argument('--test_every', type=int, default=60,
                     help='do test per every N batches')
-parser.add_argument('--epochs', type=int, default=400,
+parser.add_argument('--epochs', type=int, default=50,
                     help='number of epochs to train')
 parser.add_argument('--batch_size', type=int, default=32,
                     help='input batch size for training')
@@ -145,7 +143,7 @@ parser.add_argument('--resume', type=int, default=0,
                     help='resume from specific checkpoint')
 parser.add_argument('--save_models', action='store_true',
                     help='save all intermediate models')
-parser.add_argument('--print_every', type=int, default=100,
+parser.add_argument('--print_every', type=int, default=10,
                     help='how many batches to wait before logging training status')
 parser.add_argument('--save_results', action='store_true',
                     help='save output results')

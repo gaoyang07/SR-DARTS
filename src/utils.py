@@ -191,7 +191,8 @@ def calc_psnr(sr, hr, scale, rgb_range, benchmark=False):
     shave = math.ceil(shave)
     valid = diff[:, :, shave:-shave, shave:-shave]
     mse = valid.pow(2).mean()
-
+    if mse == 0:
+        return 0
     return -10 * math.log10(mse)
 
 
@@ -204,7 +205,6 @@ def calc_ssim(img1, img2, scale=2, benchmark=False):
         border = math.ceil(scale)
     else:
         border = math.ceil(scale)+6
-    # pdb.set_trace()
     img1 = img1.data.squeeze().float().clamp(0, 255).round().cpu().numpy()
     img1 = np.transpose(img1, (1, 2, 0))
     img2 = img2.data.squeeze().cpu().numpy()

@@ -31,7 +31,8 @@ class Trainer():
             self.optimizer.load_state_dict(
                 torch.load(os.path.join(ckp.dir, 'optimizer.pt'))
             )
-            for _ in range(len(ckp.log)): self.scheduler.step()
+            for _ in range(len(ckp.log)):
+                self.scheduler.step()
 
         self.error_last = 1e8
 
@@ -50,8 +51,6 @@ class Trainer():
         self.loss.start_log()
         self.model.train()
 
-        # eval_psnr = 0
-        # eval_ssim = 0
         timer_data, timer_model = utils.timer(), utils.timer()
         for batch, (_input, _target, _, idx_scale) in enumerate(self.loader_train):
             _input, _target = self.prepare(_input, _target)
@@ -74,18 +73,11 @@ class Trainer():
             self.optimizer.step()
             timer_model.hold()
 
-            # self.ckp.log[-1, idx_scale] = eval_psnr / len(self.loader_train.dataset)
-            
-            # best = self.ckp.log.max(0)
             if (batch + 1) % self.args.print_every == 0:
                 self.ckp.write_log('[{}/{}\t{}\t{:.1f}+{:.1f}s]'.format(
                     (batch + 1) * self.args.batch_size,
                     len(self.loader_train.dataset),
                     self.loss.display_loss(batch),
-                    # eval_psnr / len(self.loader_train.dataset),
-                    # eval_ssim / len(self.loader_train.dataset),
-                    # best[0][idx_scale],
-                    # best[1][idx_scale] + 1,
                     timer_model.release(),
                     timer_data.release()
                 ))
@@ -95,69 +87,66 @@ class Trainer():
         self.loss.end_log(len(self.loader_train))
         self.error_last = self.loss.log[-1, -1]
 
-        target = self.model
-        torch.save(
-            target.state_dict(),
-            os.path.join(self.ckp.dir,'model', 'model_{}.pt'.format(epoch))
-        )
+        # target = self.model
+        # torch.save(
+        #     target.state_dict(),
+        #     os.path.join(self.ckp.dir,'model', 'model_{}.pt'.format(epoch))
+        # )
 
     def test(self):
-        torch.set_grad_enabled(False)
-        
         epoch = self.scheduler.last_epoch + 1
         self.ckp.write_log('\nEvaluation: ')
-        self.ckp.add_log(torch.zeros(1, len(self.loader_test), len(self.scale)))
+        self.ckp.add_log(torch.zeros(
+            1, len(self.loader_test), len(self.scale)))
         self.model.eval()
 
         timer_test = utils.timer()
-        if self.args.save_results: self.ckp.begin_background()
-        for idx_data, d in enumerate(self.loader_test):
-            for idx_scale, scale in enumerate(self.scale):
-                d.dataset.set_scale(idx_scale)
-                eval_acc = 0
-                eval_acc_ssim = 0
-                for _input, _target, filename, _ in tqdm(d, ncols=80):
-                    scale = self.args.scale[idx_scale]
-                    filename = filename[0]
-                    
-                    _input, _target = self.prepare(_input, _target)
-                    timer_test.tic()
+        if self.args.save_results:
+            self.ckp.begin_background()
+        with torch.no_grad():
+            for idx_data, d in enumerate(self.loader_test):
+                for idx_scale, scale in enumerate(self.scale):
+                    d.dataset.set_scale(idx_scale)
+                    eval_acc = 0
+                    eval_acc_ssim = 0
+                    for _input, _target, filename, _ in tqdm(d, ncols=80):
+                        scale = self.args.scale[idx_scale]
+                        filename = filename[0]
 
-                    logits = self.model(_input)
-                    timer_test.hold()
-                    logits = utils.quantize(logits, self.args.rgb_range)
-                    
-                    save_list = [logits]
-                    if d.dataset.name in ['Set5', 'Set14', 'B100', 'Urban100']:
-                        benchmark = True
-                    else:
-                        benchmark = False
-                    self.ckp.log[-1, idx_data, idx_scale] += utils.calc_psnr(
-                        logits, _target, scale, self.args.rgb_range,
-                        benchmark=benchmark
+                        _input, _target = self.prepare(_input, _target)
+
+                        timer_test.tic()
+                        logits = self.model(_input)
+                        timer_test.hold()
+                        logits = utils.quantize(logits, self.args.rgb_range)
+
+                        save_list = [logits]
+                        eval_acc += utils.calc_psnr(
+                            logits, _target, scale, self.args.rgb_range,
+                            benchmark=d.dataset.benchmark
+                        )
+                        eval_acc_ssim += utils.calc_ssim(
+                            logits, _target, scale,
+                            benchmark=d.dataset.benchmark
+                        )
+                        save_list.extend([_input, _target])
+
+                        if self.args.save_results:
+                            self.ckp.save_results(filename, save_list, scale)
+
+                    self.ckp.log[-1, idx_data, idx_scale] = eval_acc / len(d)
+                    best = self.ckp.log.max(0)
+
+                    self.ckp.write_log(
+                        '\n[{} x{}]\tPSNR: {:.3f}\tSSIM: {:.4f}(Best: {:.3f} @epoch {})'.format(
+                            d.dataset.name,
+                            scale,
+                            self.ckp.log[-1, idx_data, idx_scale],
+                            eval_acc_ssim / len(d),
+                            best[0][idx_data, idx_scale],
+                            best[1][idx_data, idx_scale] + 1
+                        )
                     )
-                    eval_acc_ssim += utils.calc_ssim(
-                        logits, _target, scale,
-                        benchmark=benchmark
-                    )
-                    save_list.extend([_input, _target])
-
-                    if self.args.save_results:
-                        self.ckp.save_results(filename, save_list, scale)
-
-                self.ckp.log[-1, idx_data, idx_scale] /= len(d)
-                best = self.ckp.log.max(0)
-
-                self.ckp.write_log(
-                    '\n[{} x{}]\tPSNR: {:.3f} SSIM: {:.4f} (Best: {:.3f} @epoch {})'.format(
-                        d.dataset.name,
-                        scale,
-                        self.ckp.log[-1, idx_data, idx_scale],
-                        eval_acc_ssim / len(d),
-                        best[0][idx_data, idx_scale],
-                        best[1][idx_data, idx_scale] + 1
-                    )
-                )
         self.ckp.write_log('Forward: {:.2f}s\n'.format(timer_test.toc()))
         self.ckp.write_log('Saving...')
 
@@ -170,8 +159,6 @@ class Trainer():
         self.ckp.write_log(
             'Total: {:.2f}s\n'.format(timer_test.toc()), refresh=True
         )
-
-        torch.set_grad_enabled(True)
 
     def prepare(self, *args):
         device = torch.device('cpu' if self.args.cpu else 'cuda')
