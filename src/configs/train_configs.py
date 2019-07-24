@@ -3,17 +3,17 @@ import argparse
 
 parser = argparse.ArgumentParser("SR-DARTS")
 
+parser.add_argument('--search', action="store_true", default=False,
+                    help='the searching process.')
+
 parser.add_argument('--arch', type=str, default='SRdarts_V1',
                     help='which architecture to use')
 parser.add_argument('--checkpoint', action='store_true', default=False,
                     help='choose to keep training using the former model')
 
-parser.add_argument('--search', action="store_true", default=False,
-                    help='the searching process.')
-
 parser.add_argument('--init_channels', type=int,
                     default=32, help='num of init channels')
-parser.add_argument('--layers', type=int, default=8,
+parser.add_argument('--layers', type=int, default=16,
                     help='total number of layers')
 
 parser.add_argument('--cutout', action='store_true',
@@ -52,7 +52,7 @@ parser.add_argument('--ext', type=str, default='sep',
                     help='dataset file extension')
 parser.add_argument('--scale', type=str, default='2+3+4',
                     help='super resolution scale')
-parser.add_argument('--patch_size', type=int, default=64,
+parser.add_argument('--patch_size', type=int, default=192,
                     help='output patch size')
 parser.add_argument('--rgb_range', type=int, default=255,
                     help='maximum value of RGB')
@@ -81,7 +81,7 @@ parser.add_argument('--test_every', type=int, default=1000,
                     help='do test per every N batches')
 parser.add_argument('--epochs', type=int, default=300,
                     help='number of epochs to train')
-parser.add_argument('--batch_size', type=int, default=32,
+parser.add_argument('--batch_size', type=int, default=8,
                     help='input batch size for training')
 parser.add_argument('--split_batch', type=int, default=1,
                     help='split the batch into smaller chunks')
@@ -95,7 +95,7 @@ parser.add_argument('--gan_k', type=int, default=1,
 # Optimization specifications
 parser.add_argument('--lr', type=float, default=1e-4,
                     help='learning rate')
-parser.add_argument('--lr_decay', type=int, default=200,
+parser.add_argument('--lr_decay', type=int, default=100,
                     help='learning rate decay per N epochs')
 parser.add_argument('--decay_type', type=str, default='step',
                     help='learning rate decay type')
