@@ -1,7 +1,9 @@
 import pdb
+import math
 import torch
 import utils
 import torch.nn as nn
+import torch.nn.functional as F
 
 from decimal import Decimal
 from model.common import *
@@ -36,6 +38,10 @@ class Searcher():
         self.loss.step()
         epoch = self.scheduler.last_epoch + 1
         lr = self.scheduler.get_lr()[0]
+        self.ckp.visual("lr", lr, epoch)
+
+        temperature = self.args.initial_temp * math.pow(self.args.temp_beta, epoch)
+        self.ckp.visual("temp", temperature, epoch)
 
         genotype = self.model.genotype()
 
@@ -46,6 +52,8 @@ class Searcher():
                 genotype
             )
         )
+        print("=====> Temperature: {}".format(temperature))
+        print(F.softmax(self.model.alphas_normal, dim=-1))
         self.loss.start_log()
         self.model.train()
 
@@ -65,11 +73,11 @@ class Searcher():
             # ).requires_grad_(False).cuda(non_blocking=True)
 
             self.architect.step(_input, _target, input_search, target_search,
-                                lr, self.optimizer, unrolled=self.args.unrolled)
+                                lr, self.optimizer, temperature, unrolled=self.args.unrolled)
 
             self.optimizer.zero_grad()
 
-            logits = self.model(_input)
+            logits = self.model(_input, temperature)
             loss = self.loss(logits, _target)
             loss.backward()
 
@@ -90,13 +98,19 @@ class Searcher():
 
             timer_data.tic()
 
-        self.loss.end_log(len(self.loader_search))
+        final_loss = self.loss.end_log(len(self.loader_search))
+        final_loss = final_loss.numpy()[-1]
+        self.ckp.visual("train_loss", final_loss, epoch)
+
         self.error_last = self.loss.log[-1, -1]
 
     def valid(self):
         epoch = self.scheduler.last_epoch + 1
         self.ckp.write_log('\n\nEvaluation during search process:')
         self.ckp.add_log(torch.zeros(1, len(self.scale)))
+
+        temperature = self.args.initial_temp * math.pow(self.args.temp_beta, epoch)
+
         self.model.eval()
 
         timer_valid = utils.timer()
@@ -111,7 +125,7 @@ class Searcher():
                 # _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
                 timer_valid.tic()
-                logits = self.model(_input)
+                logits = self.model(_input, temperature)
                 timer_valid.hold()
                 logits = utils.quantize(logits, self.args.rgb_range)
 
@@ -137,6 +151,9 @@ class Searcher():
                     best[1][idx_scale] + 1
                 )
             )
+            self.ckp.visual("valid_PSNR", self.ckp.log[-1, idx_scale], epoch)
+            self.ckp.visual("valid_SSIM", eval_ssim / len(self.loader_valid), epoch)
+
         self.ckp.write_log(
             'Total time: {:.2f}s\n'.format(timer_valid.toc()), refresh=True
         )

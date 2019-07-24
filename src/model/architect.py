@@ -17,12 +17,12 @@ class Architect(object):
         self.optimizer = torch.optim.Adam(self.model.arch_parameters(),
                                           lr=args.arch_learning_rate, betas=(0.5, 0.999), weight_decay=args.arch_weight_decay)
 
-    def _compute_unrolled_model(self, input, target, eta, network_optimizer):
+    def _compute_unrolled_model(self, input, target, eta, network_optimizer, temperature):
         """
         network_optimizer here is SGD
         """
         # First, compute the loss between input and target
-        loss = self.model._loss(input, target)
+        loss = self.model._loss(input, target, temperature)
         theta = _concat(self.model.parameters()).data
 
         try:
@@ -37,7 +37,7 @@ class Architect(object):
             theta.sub(eta, moment+dtheta))
         return unrolled_model
 
-    def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled):
+    def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, temperature, unrolled):
         """
         Main Function in this class
         The calling method of the main function:
@@ -47,25 +47,25 @@ class Architect(object):
         self.optimizer.zero_grad()
         if unrolled:
             self._backward_step_unrolled(
-                input_train, target_train, input_valid, target_valid, eta, network_optimizer)
+                input_train, target_train, input_valid, target_valid, eta, network_optimizer, temperature)
         else:
-            self._backward_step(input_valid, target_valid)
+            self._backward_step(input_valid, target_valid, temperature)
         self.optimizer.step()
 
-    def _backward_step(self, input_valid, target_valid):
-        loss = self.model._loss(input_valid, target_valid)
+    def _backward_step(self, input_valid, target_valid, temperature):
+        loss = self.model._loss(input_valid, target_valid, temperature)
         loss.backward()
 
-    def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer):
+    def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, temperature):
         unrolled_model = self._compute_unrolled_model(
-            input_train, target_train, eta, network_optimizer)
-        unrolled_loss = unrolled_model._loss(input_valid, target_valid)
+            input_train, target_train, eta, network_optimizer, temperature)
+        unrolled_loss = unrolled_model._loss(input_valid, target_valid, temperature)
         unrolled_loss.backward()
 
         dalpha = [v.grad for v in unrolled_model.arch_parameters()]
         vector = [v.grad.data for v in unrolled_model.parameters()]
         implicit_grads = self._hessian_vector_product(
-            vector, input_train, target_train)
+            vector, input_train, target_train, temperature)
 
         for g, ig in zip(dalpha, implicit_grads):
             g.data.sub_(eta, ig.data)
@@ -93,16 +93,16 @@ class Architect(object):
         model_new.load_state_dict(model_dict)
         return model_new.cuda()
 
-    def _hessian_vector_product(self, vector, input, target, r=1e-2):
+    def _hessian_vector_product(self, vector, input, target, temperature, r=1e-2):
         R = r / _concat(vector).norm()
         for p, v in zip(self.model.parameters(), vector):
             p.data.add_(R, v)
-        loss = self.model._loss(input, target)
+        loss = self.model._loss(input, target, temperature)
         grads_p = torch.autograd.grad(loss, self.model.arch_parameters())
 
         for p, v in zip(self.model.parameters(), vector):
             p.data.sub_(2*R, v)
-        loss = self.model._loss(input, target)
+        loss = self.model._loss(input, target, temperature)
         grads_n = torch.autograd.grad(loss, self.model.arch_parameters())
 
         for p, v in zip(self.model.parameters(), vector):

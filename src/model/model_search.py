@@ -108,21 +108,22 @@ class Network(nn.Module):
             x.data.copy_(y.data)
         return model_new
 
-    def forward(self, input):
+    def forward(self, input, temperature):
         s0 = s1 = self.stem(input)
         for i, cell in enumerate(self.cells):
             # if cell.reduction:
             #     weights = F.softmax(self.alphas_reduce, dim=-1)
             # else:
             #     weights = F.softmax(self.alphas_normal, dim=-1)
-            weights = F.softmax(self.alphas_normal, dim=-1)
+            # weights = F.softmax(self.alphas_normal, dim=-1)
+            weights = F.softmax(self.alphas_normal / temperature, dim=-1)
             s0, s1 = s1, cell(s0, s1, weights)
         out = self.upsampler(s1)
         logits = self.channel_reducer(out)
         return logits
 
-    def _loss(self, input, target):
-        logits = self(input)
+    def _loss(self, input, target, temperature):
+        logits = self(input, temperature)
         return self._criterion(logits, target)
 
     def _initialize_alphas(self):

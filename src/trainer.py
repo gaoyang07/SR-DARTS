@@ -41,6 +41,7 @@ class Trainer():
         self.loss.step()
         epoch = self.scheduler.last_epoch + 1
         lr = self.scheduler.get_lr()[0]
+        self.ckp.visual("lr", lr, epoch)
 
         self.ckp.write_log(
             '\n\n[Epoch {}]\tLearning rate: {:.2e}'.format(
@@ -84,7 +85,10 @@ class Trainer():
 
             timer_data.tic()
 
-        self.loss.end_log(len(self.loader_train))
+        final_loss = self.loss.end_log(len(self.loader_train))
+        final_loss = final_loss.numpy()[-1]
+        self.ckp.visual("train_loss", final_loss, epoch)
+
         self.error_last = self.loss.log[-1, -1]
 
         # target = self.model
@@ -110,7 +114,6 @@ class Trainer():
                     eval_acc = 0
                     eval_acc_ssim = 0
                     for _input, _target, filename, _ in tqdm(d, ncols=80):
-                        scale = self.args.scale[idx_scale]
                         filename = filename[0]
 
                         _input, _target = self.prepare(_input, _target)
@@ -121,18 +124,19 @@ class Trainer():
                         logits = utils.quantize(logits, self.args.rgb_range)
 
                         save_list = [logits]
+                        assert self.scale[idx_scale] == 2
                         eval_acc += utils.calc_psnr(
-                            logits, _target, scale, self.args.rgb_range,
+                            logits, _target, self.scale[idx_scale], self.args.rgb_range,
                             benchmark=d.dataset.benchmark
                         )
                         eval_acc_ssim += utils.calc_ssim(
-                            logits, _target, scale,
+                            logits, _target, self.scale[idx_scale],
                             benchmark=d.dataset.benchmark
                         )
                         save_list.extend([_input, _target])
 
                         if self.args.save_results:
-                            self.ckp.save_results(filename, save_list, scale)
+                            self.ckp.save_results(filename, save_list, self.scale[idx_scale])
 
                     self.ckp.log[-1, idx_data, idx_scale] = eval_acc / len(d)
                     best = self.ckp.log.max(0)
@@ -140,13 +144,17 @@ class Trainer():
                     self.ckp.write_log(
                         '\n[{} x{}]\tPSNR: {:.3f}\tSSIM: {:.4f}(Best: {:.3f} @epoch {})'.format(
                             d.dataset.name,
-                            scale,
+                            self.scale[idx_scale],
                             self.ckp.log[-1, idx_data, idx_scale],
                             eval_acc_ssim / len(d),
                             best[0][idx_data, idx_scale],
                             best[1][idx_data, idx_scale] + 1
                         )
                     )
+                    if len(self.scale) == 1 and len(self.loader_test) == 1:
+                        self.ckp.visual("valid_PSNR", self.ckp.log[-1, idx_data, idx_scale], epoch)
+                        self.ckp.visual("valid_SSIM", eval_acc_ssim / len(d), epoch)
+
         self.ckp.write_log('Forward: {:.2f}s\n'.format(timer_test.toc()))
         self.ckp.write_log('Saving...')
 

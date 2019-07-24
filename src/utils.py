@@ -17,6 +17,7 @@ import torch.optim.lr_scheduler as lrs
 import torch.optim as optim
 
 from functools import reduce
+from torch.utils.tensorboard import SummaryWriter
 
 import matplotlib
 matplotlib.use('Agg')
@@ -51,6 +52,7 @@ class checkpoint():
         self.args = args
         self.ok = True
         self.log = torch.Tensor()
+
         now = datetime.datetime.now().strftime('%Y-%m-%d-%H:%M:%S')
 
         if args.load == '.':
@@ -68,6 +70,8 @@ class checkpoint():
         if args.reset:
             os.system('rm -rf ' + self.dir)
             args.load = '.'
+
+        self.writer = SummaryWriter("{}/{}".format(self.dir, "tensorboard"))
 
         def _make_dir(path):
             if not os.path.exists(path):
@@ -111,6 +115,13 @@ class checkpoint():
         if refresh:
             self.log_file.close()
             self.log_file = open(self.dir + '/log.txt', 'a')
+
+    def visual(self, subtitle, value, epoch):
+        if self.args.search:
+            title = "search"
+        else:
+            title = "train"
+        self.writer.add_scalar(title+"/"+subtitle, value, epoch)
 
     def done(self):
         self.log_file.close()
