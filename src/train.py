@@ -6,7 +6,7 @@ import numpy as np
 from loss import Loss
 from data import DataLoader
 from trainer import Trainer
-from model.model import Network
+from model.train.model import Network
 from configs.train_configs import args
 
 

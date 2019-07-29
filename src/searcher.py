@@ -7,8 +7,7 @@ import torch.nn.functional as F
 
 from decimal import Decimal
 from model.common import *
-from model.architect import Architect
-# from torch.utils.tensorboard import SummaryWriter
+from model.search.architect import Architect
 
 
 class Searcher():

@@ -6,7 +6,7 @@ import numpy as np
 from loss import Loss
 from data import DataLoader
 from searcher import Searcher
-from model.model_search import Network
+from model.search.model import Network
 from configs.search_configs import args
 
 

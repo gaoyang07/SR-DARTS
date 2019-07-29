@@ -8,7 +8,6 @@ import torch.nn as nn
 from decimal import Decimal
 from model.common import *
 from tqdm import tqdm
-# from torch.utils.tensorboard import SummaryWriter
 
 
 class Trainer():
@@ -124,7 +123,6 @@ class Trainer():
                         logits = utils.quantize(logits, self.args.rgb_range)
 
                         save_list = [logits]
-                        assert self.scale[idx_scale] == 2
                         eval_acc += utils.calc_psnr(
                             logits, _target, self.scale[idx_scale], self.args.rgb_range,
                             benchmark=d.dataset.benchmark
