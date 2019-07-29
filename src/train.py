@@ -6,9 +6,8 @@ import numpy as np
 from loss import Loss
 from data import DataLoader
 from trainer import Trainer
-from model.train.model import Network
 from configs.train_configs import args
-
+from model.train import Model as Model
 
 def main():
     """
@@ -25,8 +24,8 @@ def main():
     if checkpoint.ok:
         data_loader = DataLoader(args)
         loss = Loss(args, checkpoint) if not args.test_only else None
-        model = Network(args).cuda()
-        srdarts = Trainer(args, data_loader, model, loss, checkpoint)
+        train_model = Model(args, loss, checkpoint)
+        srdarts = Trainer(args, data_loader, train_model, loss, checkpoint)
 
         while not srdarts.terminate():
             srdarts.train()

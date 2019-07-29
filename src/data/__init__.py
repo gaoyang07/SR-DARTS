@@ -1,5 +1,5 @@
 from importlib import import_module
-from data.build import MSDataLoader
+from data.dataloader import MSDataLoader
 from torch.utils.data import ConcatDataset
 
 

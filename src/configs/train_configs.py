@@ -30,9 +30,9 @@ parser.add_argument('--n_threads', type=int, default=4,
                     help='number of threads for data loading')
 parser.add_argument('--cpu', action='store_true',
                     help='use cpu only')
-# parser.add_argument('--gpu', type=str, default='1',
-#                     help="gpu device id")
-parser.add_argument('--n_GPUs', type=int, default=1,
+parser.add_argument('--gpu', type=str, default='0,1,2,3',
+                    help="gpu device id")
+parser.add_argument('--n_GPUs', type=int, default=4,
                     help='number of GPUs')
 parser.add_argument('--seed', type=int, default=1,
                     help='random seed')
@@ -58,8 +58,8 @@ parser.add_argument('--rgb_range', type=int, default=255,
                     help='maximum value of RGB')
 parser.add_argument('--n_colors', type=int, default=3,
                     help='number of color channels to use')
-# parser.add_argument('--chop', action='store_true',
-#                     help='enable memory-efficient forward')
+parser.add_argument('--chop', action='store_true',
+                    help='enable memory-efficient forward')
 parser.add_argument('--no_augment', action='store_true',
                     help='do not use data augmentation')
 
@@ -81,7 +81,7 @@ parser.add_argument('--test_every', type=int, default=1000,
                     help='do test per every N batches')
 parser.add_argument('--epochs', type=int, default=400,
                     help='number of epochs to train')
-parser.add_argument('--batch_size', type=int, default=8,
+parser.add_argument('--batch_size', type=int, default=32,
                     help='input batch size for training')
 parser.add_argument('--split_batch', type=int, default=1,
                     help='split the batch into smaller chunks')
@@ -139,6 +139,7 @@ parser.add_argument('--save_results', action='store_true',
 
 args = parser.parse_args()
 
+args.gpus = list(map(lambda x: int(x), args.gpus.split(',')))
 args.scale = list(map(lambda x: int(x), args.scale.split('+')))
 args.data_train = args.data_train.split('+')
 args.data_valid = args.data_valid.split('+')

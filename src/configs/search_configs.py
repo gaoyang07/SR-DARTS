@@ -33,8 +33,6 @@ parser.add_argument('--drop_path_prob', type=float, default=0.3,
                     help='drop path probability')
 parser.add_argument('--grad_clip', type=float,
                     default=5, help='gradient clipping')
-# parser.add_argument('--train_portion', type=float, default=0.5,
-#                     help='portion of training data')
 parser.add_argument('--unrolled', action='store_true', default=False,
                     help='use one-step unrolled validation loss')
 
@@ -43,9 +41,9 @@ parser.add_argument('--n_threads', type=int, default=4,
                     help='number of threads for data loading')
 parser.add_argument('--cpu', action='store_true',
                     help='use cpu only')
-# parser.add_argument('--gpu', type=str, default='1',
-#                     help="gpu device id")
-parser.add_argument('--n_GPUs', type=int, default=1,
+parser.add_argument('--gpus', type=str, default='0,1,2,3',
+                    help="gpu device id")
+parser.add_argument('--n_GPUs', type=int, default=4,
                     help='number of GPUs')
 parser.add_argument('--seed', type=int, default=1,
                     help='random seed')
@@ -65,7 +63,7 @@ parser.add_argument('--ext', type=str, default='sep',
                     help='dataset file extension')
 parser.add_argument('--scale', type=str, default='2',
                     help='super resolution scale')
-parser.add_argument('--patch_size', type=int, default=64,
+parser.add_argument('--patch_size', type=int, default=192,
                     help='output patch size')
 parser.add_argument('--rgb_range', type=int, default=255,
                     help='maximum value of RGB')
@@ -93,11 +91,11 @@ parser.add_argument('--precision', type=str, default='single',
 # Training specifications
 parser.add_argument('--reset', action='store_true',
                     help='reset the training')
-parser.add_argument('--test_every', type=int, default=500,
+parser.add_argument('--test_every', type=int, default=100,
                     help='do test per every N batches')
 parser.add_argument('--epochs', type=int, default=50,
                     help='number of epochs to train')
-parser.add_argument('--batch_size', type=int, default=64,
+parser.add_argument('--batch_size', type=int, default=16,
                     help='input batch size for training')
 parser.add_argument('--split_batch', type=int, default=1,
                     help='split the batch into smaller chunks')
@@ -148,7 +146,7 @@ parser.add_argument('--resume', type=int, default=0,
                     help='resume from specific checkpoint')
 parser.add_argument('--save_models', action='store_true',
                     help='save all intermediate models')
-parser.add_argument('--print_every', type=int, default=100,
+parser.add_argument('--print_every', type=int, default=10,
                     help='how many batches to wait before logging training status')
 parser.add_argument('--save_results', action='store_true',
                     help='save output results')
@@ -156,6 +154,7 @@ parser.add_argument('--save_results', action='store_true',
 args = parser.parse_args()
 # template.set_template(args)
 
+args.gpus = list(map(lambda x: int(x), args.gpus.split(',')))
 args.scale = list(map(lambda x: int(x), args.scale.split('+')))
 args.data_train = args.data_train.split('+')
 args.data_valid = args.data_valid.split('+')

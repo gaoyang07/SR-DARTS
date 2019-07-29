@@ -22,6 +22,7 @@ class Trainer():
         self.loader_train = loader.loader_train
         self.loader_test = loader.loader_test
         self.model = model
+        self.network = model.model
         self.loss = loss
         self.optimizer = utils.make_optimizer(args, self.model)
         self.scheduler = utils.make_scheduler(args, self.optimizer)
@@ -64,7 +65,7 @@ class Trainer():
             self.optimizer.zero_grad()
 
             # output is the high-resolution image
-            logits = self.model(_input)
+            logits = self.model(_input, idx_scale)
             loss = self.loss(logits, _target)
             loss.backward()
 
@@ -90,11 +91,11 @@ class Trainer():
 
         self.error_last = self.loss.log[-1, -1]
 
-        # target = self.model
-        # torch.save(
-        #     target.state_dict(),
-        #     os.path.join(self.ckp.dir,'model', 'model_{}.pt'.format(epoch))
-        # )
+        target = self.model
+        torch.save(
+            target.state_dict(),
+            os.path.join(self.ckp.dir,'model', 'model_{}.pt'.format(epoch))
+        )
 
     def test(self):
         epoch = self.scheduler.last_epoch + 1
@@ -118,7 +119,7 @@ class Trainer():
                         _input, _target = self.prepare(_input, _target)
 
                         timer_test.tic()
-                        logits = self.model(_input)
+                        logits = self.model(_input, idx_scale)
                         timer_test.hold()
                         logits = utils.quantize(logits, self.args.rgb_range)
 

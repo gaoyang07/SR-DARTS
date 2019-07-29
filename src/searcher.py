@@ -14,7 +14,6 @@ class Searcher():
     """
     Define a class called Searcher for searching purpose
     """
-
     def __init__(self, args, loader, model, loss, ckp):
         self.args = args
         self.ckp = ckp
@@ -22,13 +21,11 @@ class Searcher():
         self.loader_search = loader.loader_train
         self.loader_valid = loader.loader_valid
         self.model = model
+        # self.network = model.network
         self.loss = loss
         self.architect = Architect(self.model, self.args)
         self.optimizer = utils.make_optimizer(args, self.model)
         self.scheduler = utils.make_scheduler(args, self.optimizer)
-
-        # if not args.cpu and args.n_GPUs > 1:
-        #     self.model = nn.DataParallel(self.model, range(args.n_GPUs))
 
         self.error_last = 1e8
 
@@ -39,19 +36,20 @@ class Searcher():
         lr = self.scheduler.get_lr()[0]
         self.ckp.visual("lr", lr, epoch)
 
-        temperature = self.args.initial_temp * math.pow(self.args.temp_beta, epoch)
+        temperature = self.model.temperature
         self.ckp.visual("temp", temperature, epoch)
+        self.model.temp_update(epoch)
 
         genotype = self.model.genotype()
 
         self.ckp.write_log(
-            '[Epoch {}]\tLearning rate: {:.2e}\nGenotype: {}'.format(
+            '[Epoch {}]\tLearning rate: {:.2e}\tTemperature: {:.4e}\nGenotype: {}'.format(
                 epoch,
                 Decimal(lr),
+                temperature,
                 genotype
             )
         )
-        print("=====> Temperature: {}".format(temperature))
         print(F.softmax(self.model.alphas_normal, dim=-1))
         self.loss.start_log()
         self.model.train()
@@ -66,19 +64,20 @@ class Searcher():
             # _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
             input_search, target_search, _, _ = next(iter(self.loader_valid))
-            input_search, target_search = self.prepare(input_search, target_search)
+            input_search, target_search = self.prepare(
+                input_search, target_search)
             # input_search = input_search.clone().detach().requires_grad_(False).cuda()
             # target_search = target_search.clone().detach(
             # ).requires_grad_(False).cuda(non_blocking=True)
 
             self.architect.step(_input, _target, input_search, target_search,
-                                lr, self.optimizer, temperature, unrolled=self.args.unrolled)
+                                lr, self.optimizer, unrolled=self.args.unrolled)
 
             self.optimizer.zero_grad()
 
-            logits = self.model(_input, temperature)
+            logits = self.model(_input)
             loss = self.loss(logits, _target)
-            loss.backward()
+            loss.backward(retain_graph=True)
 
             # TODO:check the diff between clip_grad_norm and clip_grad_value_(in EDSR)
             nn.utils.clip_grad_norm_(self.model.parameters(),
@@ -107,9 +106,6 @@ class Searcher():
         epoch = self.scheduler.last_epoch + 1
         self.ckp.write_log('\n\nEvaluation during search process:')
         self.ckp.add_log(torch.zeros(1, len(self.scale)))
-
-        temperature = self.args.initial_temp * math.pow(self.args.temp_beta, epoch)
-
         self.model.eval()
 
         timer_valid = utils.timer()
@@ -124,7 +120,7 @@ class Searcher():
                 # _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
                 timer_valid.tic()
-                logits = self.model(_input, temperature)
+                logits = self.model(_input)
                 timer_valid.hold()
                 logits = utils.quantize(logits, self.args.rgb_range)
 
@@ -151,7 +147,8 @@ class Searcher():
                 )
             )
             self.ckp.visual("valid_PSNR", self.ckp.log[-1, idx_scale], epoch)
-            self.ckp.visual("valid_SSIM", eval_ssim / len(self.loader_valid), epoch)
+            self.ckp.visual("valid_SSIM", eval_ssim /
+                            len(self.loader_valid), epoch)
 
         self.ckp.write_log(
             'Total time: {:.2f}s\n'.format(timer_valid.toc()), refresh=True

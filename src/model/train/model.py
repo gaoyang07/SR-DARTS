@@ -7,10 +7,14 @@ from model.genotypes import Genotype
 from model.train.cell import Cell
 
 
-class Network(nn.Module):
+# def make_model(args, parent=False):
+#     return Network(args)
 
+class Network(nn.Module):
+    """Training Network"""
     def __init__(self, args):
         super(Network, self).__init__()
+
         self.args = args
         self.C = args.init_channels
         self._layers = args.layers
