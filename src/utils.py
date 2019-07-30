@@ -10,7 +10,6 @@ from multiprocessing import Queue
 import scipy.misc as misc
 import numpy as np
 import imageio
-import matplotlib.pyplot as plt
 
 import torch
 import torch.optim.lr_scheduler as lrs
@@ -21,6 +20,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 import matplotlib
 matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 
 class timer():
@@ -95,9 +95,9 @@ class checkpoint():
         return os.path.join(self.dir, *subdir)
 
     def save(self, trainer, epoch, is_best=False):
-        # trainer.model.save(self.dir, epoch, is_best=is_best)
+        trainer.model.save(self.dir, epoch, is_best=is_best)
         trainer.loss.save(self.dir)
-        # trainer.loss.plot_loss(self.dir, epoch)
+        trainer.loss.plot_loss(self.dir, epoch)
 
         self.plot_psnr(epoch)
         torch.save(self.log, os.path.join(self.dir, 'psnr_log.pt'))

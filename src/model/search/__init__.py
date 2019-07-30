@@ -17,21 +17,18 @@ def broadcast_list(l, device_ids):
 
     return l_copies
 
-
 class NetworkController(nn.Module):
     """Support multi-gpu"""
 
     def __init__(self, args, loss):
         super().__init__()
         self.args = args
-        # self.loss = loss
         self._criterion = loss
         self._steps = 4
         self._multiplier = 4
         self.temperature = args.initial_temp
 
         self.device_ids = args.gpus
-        print("self.device_ids: {}".format(self.device_ids))
         if args.gpus is None:
             device_ids = list(range(torch.cuda.device_count()))
             self.device_ids = device_ids
@@ -54,8 +51,6 @@ class NetworkController(nn.Module):
 
         # replicate modules
         replicas = nn.parallel.replicate(self.network, self.device_ids)
-        print("replicas.len: {}".format( len(replicas) ))
-        print("list(zip(xs, wnormal_copies)): {}".format( len(list(zip(xs, wnormal_copies))) ))
         outputs = nn.parallel.parallel_apply(replicas,
                                              list(zip(xs, wnormal_copies)),
                                              devices=self.device_ids)

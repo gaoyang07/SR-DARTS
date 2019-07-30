@@ -47,7 +47,7 @@ class DataLoader(object):
             self.loader_valid = MSDataLoader(
                 args,
                 MyConcatDataset(datasets_valid),
-                batch_size=1,
+                batch_size=args.batch_size,
                 shuffle=False,
                 pin_memory=True,
             )

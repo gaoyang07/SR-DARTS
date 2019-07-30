@@ -20,7 +20,6 @@ class DIV2K(srdata.SRData):
                 self.end = self.end // 2
             else:
                 self.begin = (self.end // 2) + 1
-                self.end = self.begin + 9
 
         super(DIV2K, self).__init__(
             args, name=name, train=train, benchmark=benchmark

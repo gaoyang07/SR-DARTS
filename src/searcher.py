@@ -21,7 +21,6 @@ class Searcher():
         self.loader_search = loader.loader_train
         self.loader_valid = loader.loader_valid
         self.model = model
-        # self.network = model.network
         self.loss = loss
         self.architect = Architect(self.model, self.args)
         self.optimizer = utils.make_optimizer(args, self.model)
@@ -59,13 +58,12 @@ class Searcher():
             _input, _target = self.prepare(_input, _target)
             timer_data.hold()
             timer_model.tic()
-
             # _input = _input.clone().detach().requires_grad_(False).cuda()
             # _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
             input_search, target_search, _, _ = next(iter(self.loader_valid))
-            input_search, target_search = self.prepare(
-                input_search, target_search)
+            input_search, target_search = self.prepare(input_search, target_search)
+
             # input_search = input_search.clone().detach().requires_grad_(False).cuda()
             # target_search = target_search.clone().detach(
             # ).requires_grad_(False).cuda(non_blocking=True)
@@ -74,7 +72,6 @@ class Searcher():
                                 lr, self.optimizer, unrolled=self.args.unrolled)
 
             self.optimizer.zero_grad()
-
             logits = self.model(_input)
             loss = self.loss(logits, _target)
             loss.backward(retain_graph=True)
@@ -111,7 +108,7 @@ class Searcher():
         timer_valid = utils.timer()
         with torch.no_grad():
             eval_psnr = 0
-            eval_ssim = 0
+            # eval_ssim = 0
             for batch, (_input, _target, _, idx_scale) in enumerate(self.loader_valid):
                 _input, _target = self.prepare(_input, _target)
 
@@ -128,27 +125,36 @@ class Searcher():
                     logits, _target, self.scale[idx_scale], self.args.rgb_range,
                     benchmark=False
                 )
-                eval_ssim += utils.calc_ssim(
-                    logits, _target, self.scale[idx_scale],
-                    benchmark=False
-                )
+                # eval_ssim += utils.calc_ssim(
+                #     logits, _target, self.scale[idx_scale],
+                #     benchmark=False
+                # )
 
             self.ckp.log[-1, idx_scale] = eval_psnr / len(self.loader_valid)
 
             best = self.ckp.log.max(0)
+            # self.ckp.write_log(
+            #     '[{} x{}]\tPSNR: {:.3f}\tSSIM: {:.4f}\t(best: {:.3f} @epoch {})'.format(
+            #         self.args.data_valid,
+            #         self.scale[idx_scale],
+            #         self.ckp.log[-1, idx_scale],
+            #         eval_ssim / len(self.loader_valid),
+            #         best[0][idx_scale],
+            #         best[1][idx_scale] + 1
+            #     )
+            # )
             self.ckp.write_log(
-                '[{} x{}]\tPSNR: {:.3f}\tSSIM: {:.4f}\t(best: {:.3f} @epoch {})'.format(
+                '[{} x{}]\tPSNR: {:.3f}\t(best: {:.3f} @epoch {})'.format(
                     self.args.data_valid,
                     self.scale[idx_scale],
                     self.ckp.log[-1, idx_scale],
-                    eval_ssim / len(self.loader_valid),
                     best[0][idx_scale],
                     best[1][idx_scale] + 1
                 )
             )
             self.ckp.visual("valid_PSNR", self.ckp.log[-1, idx_scale], epoch)
-            self.ckp.visual("valid_SSIM", eval_ssim /
-                            len(self.loader_valid), epoch)
+            # self.ckp.visual("valid_SSIM", eval_ssim /
+            #                 len(self.loader_valid), epoch)
 
         self.ckp.write_log(
             'Total time: {:.2f}s\n'.format(timer_valid.toc()), refresh=True

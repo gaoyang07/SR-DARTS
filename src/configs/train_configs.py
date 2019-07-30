@@ -30,7 +30,7 @@ parser.add_argument('--n_threads', type=int, default=4,
                     help='number of threads for data loading')
 parser.add_argument('--cpu', action='store_true',
                     help='use cpu only')
-parser.add_argument('--gpu', type=str, default='0,1,2,3',
+parser.add_argument('--gpus', type=str, default='0,1,2,3',
                     help="gpu device id")
 parser.add_argument('--n_GPUs', type=int, default=4,
                     help='number of GPUs')
@@ -81,7 +81,7 @@ parser.add_argument('--test_every', type=int, default=1000,
                     help='do test per every N batches')
 parser.add_argument('--epochs', type=int, default=400,
                     help='number of epochs to train')
-parser.add_argument('--batch_size', type=int, default=32,
+parser.add_argument('--batch_size', type=int, default=16,
                     help='input batch size for training')
 parser.add_argument('--split_batch', type=int, default=1,
                     help='split the batch into smaller chunks')
