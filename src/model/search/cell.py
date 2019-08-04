@@ -21,9 +21,8 @@ class MixedOp(nn.Module):
 
 class Cell(nn.Module):
 
-    def __init__(self, steps, multiplier, C_prev_prev, C_prev, C, reduction, reduction_prev):
+    def __init__(self, steps, multiplier, C_prev_prev, C_prev, C):
         super(Cell, self).__init__()
-        self.reduction = reduction
 
         self.preprocess0 = ReLUConv(C_prev_prev, C, 3, 1, 1, affine=False)
         self.preprocess1 = ReLUConv(C_prev, C, 3, 1, 1, affine=False)

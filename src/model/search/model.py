@@ -4,11 +4,11 @@ import torch.nn.functional as F
 from model.operations import *
 from model.genotypes import PRIMITIVES
 from model.search.cell import Cell
+import utils.utils as utils
 
 
 class Network(nn.Module):
     """Searching Network"""
-
     def __init__(self, args, loss):
         super(Network, self).__init__()
         self.args = args
@@ -27,18 +27,10 @@ class Network(nn.Module):
 
         C_prev_prev, C_prev, C_curr = C_curr, C_curr, self._C
         self.cells = nn.ModuleList()
-        reduction_prev = False
         for i in range(self._layers):
-            # if i in [self._layers // 3, 2 * self._layers//3]:
-            #     # C_curr *= 2
-            #     reduction = True
-            # else:
-            #     reduction = False
-            reduction = False
-            cell = Cell(self._steps, self._multiplier, C_prev_prev, C_prev,
-                        C_curr, reduction, reduction_prev)
-            reduction_prev = reduction
-            self.cells += [cell]
+            self.cells.append(
+                Cell(self._steps, self._multiplier, C_prev_prev, C_prev, C_curr)
+            )
             C_prev_prev, C_prev = C_prev, self._multiplier * C_curr
 
         self.upsampler = Upsampler(C_prev, C_prev, 3,

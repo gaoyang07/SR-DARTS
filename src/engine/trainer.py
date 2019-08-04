@@ -1,9 +1,9 @@
 import os
 import sys
 import pdb
-import utils
 import torch
 import torch.nn as nn
+import utils.utils as utils
 
 from decimal import Decimal
 from model.common import *
@@ -14,7 +14,6 @@ class Trainer():
     """
     Define a class called Trainer for training purpose.
     """
-
     def __init__(self, args, loader, model, loss, ckp):
         self.args = args
         self.ckp = ckp
@@ -22,7 +21,6 @@ class Trainer():
         self.loader_train = loader.loader_train
         self.loader_test = loader.loader_test
         self.model = model
-        self.network = model.model
         self.loss = loss
         self.optimizer = utils.make_optimizer(args, self.model)
         self.scheduler = utils.make_scheduler(args, self.optimizer)
@@ -57,10 +55,6 @@ class Trainer():
             _input, _target = self.prepare(_input, _target)
             timer_data.hold()
             timer_model.tic()
-
-            # TODO: check whether it's ness or not
-            # _input = _input.clone().detach().requires_grad_(False).cuda()
-            # _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
             self.optimizer.zero_grad()
 

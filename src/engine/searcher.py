@@ -1,8 +1,8 @@
 import pdb
 import math
 import torch
-import utils
 import torch.nn as nn
+import utils.utils as utils
 import torch.nn.functional as F
 
 from decimal import Decimal
@@ -14,6 +14,7 @@ class Searcher():
     """
     Define a class called Searcher for searching purpose
     """
+
     def __init__(self, args, loader, model, loss, ckp):
         self.args = args
         self.ckp = ckp
@@ -37,7 +38,6 @@ class Searcher():
 
         temperature = self.model.temperature
         self.ckp.visual("temp", temperature, epoch)
-        self.model.temp_update(epoch)
 
         genotype = self.model.genotype()
 
@@ -49,24 +49,22 @@ class Searcher():
                 genotype
             )
         )
-        print(F.softmax(self.model.alphas_normal, dim=-1))
+        if not self.args.use_sparsemax:
+            print(F.softmax(self.model.alphas_normal, dim=-1))
+
         self.loss.start_log()
         self.model.train()
 
         timer_data, timer_model = utils.timer(), utils.timer()
         for batch, (_input, _target, _, _) in enumerate(self.loader_search):
-            _input, _target = self.prepare(_input, _target)
+            _input, _target = self.prepare(_input.detach(), _target.detach())
+
             timer_data.hold()
             timer_model.tic()
-            # _input = _input.clone().detach().requires_grad_(False).cuda()
-            # _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
 
             input_search, target_search, _, _ = next(iter(self.loader_valid))
-            input_search, target_search = self.prepare(input_search, target_search)
-
-            # input_search = input_search.clone().detach().requires_grad_(False).cuda()
-            # target_search = target_search.clone().detach(
-            # ).requires_grad_(False).cuda(non_blocking=True)
+            input_search, target_search = self.prepare(
+                input_search.detach(), target_search.detach())
 
             self.architect.step(_input, _target, input_search, target_search,
                                 lr, self.optimizer, unrolled=self.args.unrolled)
@@ -98,6 +96,8 @@ class Searcher():
         self.ckp.visual("train_loss", final_loss, epoch)
 
         self.error_last = self.loss.log[-1, -1]
+        if self.args.use_temp:
+            self.model.temp_update(epoch)
 
     def valid(self):
         epoch = self.scheduler.last_epoch + 1
@@ -108,13 +108,9 @@ class Searcher():
         timer_valid = utils.timer()
         with torch.no_grad():
             eval_psnr = 0
-            # eval_ssim = 0
+            eval_ssim = 0
             for batch, (_input, _target, _, idx_scale) in enumerate(self.loader_valid):
-                _input, _target = self.prepare(_input, _target)
-
-                # # TODO: check whether it's ness or not
-                # _input = _input.clone().detach().requires_grad_(False).cuda()
-                # _target = _target.clone().detach().requires_grad_(False).cuda(non_blocking=True)
+                _input, _target = self.prepare(_input.detach(), _target.detach())
 
                 timer_valid.tic()
                 logits = self.model(_input)
@@ -125,36 +121,27 @@ class Searcher():
                     logits, _target, self.scale[idx_scale], self.args.rgb_range,
                     benchmark=False
                 )
-                # eval_ssim += utils.calc_ssim(
-                #     logits, _target, self.scale[idx_scale],
-                #     benchmark=False
-                # )
+                eval_ssim += utils.calc_batch_ssim(
+                    logits, _target, self.scale[idx_scale],
+                    benchmark=False
+                )
 
             self.ckp.log[-1, idx_scale] = eval_psnr / len(self.loader_valid)
 
             best = self.ckp.log.max(0)
-            # self.ckp.write_log(
-            #     '[{} x{}]\tPSNR: {:.3f}\tSSIM: {:.4f}\t(best: {:.3f} @epoch {})'.format(
-            #         self.args.data_valid,
-            #         self.scale[idx_scale],
-            #         self.ckp.log[-1, idx_scale],
-            #         eval_ssim / len(self.loader_valid),
-            #         best[0][idx_scale],
-            #         best[1][idx_scale] + 1
-            #     )
-            # )
             self.ckp.write_log(
-                '[{} x{}]\tPSNR: {:.3f}\t(best: {:.3f} @epoch {})'.format(
+                '[{} x{}]\tPSNR: {:.3f}\tSSIM: {:.4f}\t(best: {:.3f} @epoch {})'.format(
                     self.args.data_valid,
                     self.scale[idx_scale],
                     self.ckp.log[-1, idx_scale],
+                    eval_ssim / len(self.loader_valid),
                     best[0][idx_scale],
                     best[1][idx_scale] + 1
                 )
             )
             self.ckp.visual("valid_PSNR", self.ckp.log[-1, idx_scale], epoch)
-            # self.ckp.visual("valid_SSIM", eval_ssim /
-            #                 len(self.loader_valid), epoch)
+            self.ckp.visual("valid_SSIM", eval_ssim /
+                            len(self.loader_valid), epoch)
 
         self.ckp.write_log(
             'Total time: {:.2f}s\n'.format(timer_valid.toc()), refresh=True

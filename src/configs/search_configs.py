@@ -11,6 +11,7 @@ parser.add_argument('--model_path', type=str, default='',
 parser.add_argument('--checkpoint', action='store_true', default=False,
                     help='choose to keep training using the former model')
 
+# Controller
 parser.add_argument('--arch_learning_rate', type=float, default=1e-3,
                     help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3,
@@ -18,8 +19,13 @@ parser.add_argument('--arch_weight_decay', type=float, default=1e-3,
 parser.add_argument('--init_channels', type=int,
                     default=16, help='num of init channels')
 parser.add_argument('--layers', type=int, default=8,
-                    help='total number of layers')
-
+                    help='the number of cells')
+parser.add_argument('--use_sparsemax', action='store_true', default=False,
+                    help='use sparsemax to replace softmax for alphas')
+parser.add_argument('--use_concrete', action='store_true', default=False,
+                    help='use gumbel_softmax sample for alphas')
+parser.add_argument('--use_temp', action='store_true', default=True,
+                    help='use temperature in softmax')
 parser.add_argument('--initial_temp', type=float, default=1.3,
                     help='initial softmax temperature')
 parser.add_argument('--temp_beta', type=float, default=0.95,
@@ -63,7 +69,7 @@ parser.add_argument('--ext', type=str, default='sep',
                     help='dataset file extension')
 parser.add_argument('--scale', type=str, default='2',
                     help='super resolution scale')
-parser.add_argument('--patch_size', type=int, default=192,
+parser.add_argument('--patch_size', type=int, default=72,
                     help='output patch size')
 parser.add_argument('--rgb_range', type=int, default=255,
                     help='maximum value of RGB')
@@ -91,11 +97,11 @@ parser.add_argument('--precision', type=str, default='single',
 # Training specifications
 parser.add_argument('--reset', action='store_true',
                     help='reset the training')
-parser.add_argument('--test_every', type=int, default=500,
+parser.add_argument('--test_every', type=int, default=200,
                     help='do test per every N batches')
 parser.add_argument('--epochs', type=int, default=50,
                     help='number of epochs to train')
-parser.add_argument('--batch_size', type=int, default=8,
+parser.add_argument('--batch_size', type=int, default=64,
                     help='input batch size for training')
 parser.add_argument('--split_batch', type=int, default=1,
                     help='split the batch into smaller chunks')
@@ -109,7 +115,7 @@ parser.add_argument('--gan_k', type=int, default=1,
 # Optimization specifications
 parser.add_argument('--lr', type=float, default=5e-3,
                     help='learning rate')
-parser.add_argument('--lr_decay', type=int, default=30,
+parser.add_argument('--lr_decay', type=int, default=100,
                     help='learning rate decay per N epochs')
 parser.add_argument('--decay_type', type=str, default='step',
                     help='learning rate decay type')
@@ -146,7 +152,7 @@ parser.add_argument('--resume', type=int, default=0,
                     help='resume from specific checkpoint')
 parser.add_argument('--save_models', action='store_true',
                     help='save all intermediate models')
-parser.add_argument('--print_every', type=int, default=100,
+parser.add_argument('--print_every', type=int, default=20,
                     help='how many batches to wait before logging training status')
 parser.add_argument('--save_results', action='store_true',
                     help='save output results')

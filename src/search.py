@@ -1,22 +1,25 @@
 import torch
-import utils
 import data
 import model
+import random
 import numpy as np
 from loss import Loss
+import utils.utils as utils
 from data import DataLoader
-from searcher import Searcher
+from engine.searcher import Searcher
 from configs.search_configs import args
-from model.search import NetworkController as Model
+from model.search.controller import NetworkController as Model
 
 
 def main():
     """
     Main Function for searching process.
     """
-    np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
 
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False

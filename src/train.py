@@ -1,13 +1,13 @@
 import torch
-import utils
 import data
 import model
 import numpy as np
 from loss import Loss
+import utils.utils as utils
 from data import DataLoader
-from trainer import Trainer
+from engine.trainer import Trainer
 from configs.train_configs import args
-from model.train import Model as Model
+from model.train.model import Model as Model
 
 def main():
     """

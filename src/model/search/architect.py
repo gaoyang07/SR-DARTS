@@ -11,6 +11,7 @@ def _concat(xs):
 class Architect(object):
 
     def __init__(self, model, args):
+        self.args = args
         self.network_momentum = args.momentum
         self.network_weight_decay = args.weight_decay
         self.model = model
@@ -77,7 +78,9 @@ class Architect(object):
                 v.grad.data.copy_(g.data)
 
     def _construct_model_from_theta(self, theta):
-        model_new = self.model.new()
+        model_new = self.model.Network(self.model.args, self.model._criterion).cuda()
+        for x, y in zip(model_new.arch_parameters(), self.model.arch_parameters()):
+            x.data.copy_(y.data)
         model_dict = self.model.state_dict()
 
         params, offset = {}, 0
@@ -108,6 +111,4 @@ class Architect(object):
         for p, v in zip(self.model.parameters(), vector):
             p.data.add_(R, v)
 
-        # return-->DARTS Paper formula 7
-        # div_、add_、sub_ :magic function？
         return [(x-y).div_(2*R) for x, y in zip(grads_p, grads_n)]

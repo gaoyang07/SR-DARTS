@@ -207,6 +207,16 @@ def calc_psnr(sr, hr, scale, rgb_range, benchmark=False):
     return -10 * math.log10(mse)
 
 
+def calc_batch_ssim(sr_batch, hr_batch, scale=None, benchmark=False):
+    sr_imgs = torch.chunk(sr_batch, sr_batch.size()[0], dim=0)
+    hr_imgs = torch.chunk(hr_batch, hr_batch.size()[0], dim=0)
+    batch_ssim = 0.0
+    for sr, hr in zip(sr_imgs, hr_imgs):
+        batch_ssim += calc_ssim(sr, hr, scale, benchmark)
+    batch_ssim /= len(sr_imgs)
+    return batch_ssim
+
+
 def calc_ssim(img1, img2, scale=2, benchmark=False):
     '''calculate SSIM
     the same outputs as MATLAB's
