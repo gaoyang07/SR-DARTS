@@ -1,7 +1,6 @@
 import os
 import torch
 import torch.nn as nn
-# import torch.nn.parallel as P
 from model.train.network import Network as Network
 
 
@@ -23,9 +22,17 @@ class Model(nn.Module):
         self.n_GPUs = args.n_GPUs
         self.save_models = args.save_models
 
-        self.model = Network(args)
+        self.n_colors = args.n_colors
+        self.init_channels = args.init_channels
+        self.n_cells = args.n_cells
+        self.drop_path_prob = args.drop_path_prob
+        self.arch = args.arch
+
+        self.model = Network(self.arch, self.init_channels, self.n_colors,
+                             self.scale[0], self.n_cells, self.drop_path_prob)
         self.model = self.model.to(self.device)
-        if args.precision == 'half': self.model.half()
+        if args.precision == 'half':
+            self.model.half()
 
         if not self.cpu and self.n_GPUs > 1:
             self.model = nn.DataParallel(self.model, range(self.n_GPUs))
@@ -135,7 +142,7 @@ class Model(nn.Module):
                 sr_list.extend(sr_batch.chunk(n_GPUs, dim=0))
         else:
             sr_list = [
-                self.forward_chop(patch, shave=shave, min_size=min_size) \
+                self.forward_chop(patch, shave=shave, min_size=min_size)
                 for patch in lr_list
             ]
 

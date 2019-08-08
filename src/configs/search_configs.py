@@ -16,15 +16,22 @@ parser.add_argument('--arch_learning_rate', type=float, default=1e-3,
                     help='learning rate for arch encoding')
 parser.add_argument('--arch_weight_decay', type=float, default=1e-3,
                     help='weight decay for arch encoding')
+
 parser.add_argument('--init_channels', type=int,
                     default=16, help='num of init channels')
-parser.add_argument('--layers', type=int, default=8,
+parser.add_argument('--n_cells', type=int, default=8,
                     help='the number of cells')
+parser.add_argument('--n_nodes', type=int, default=4,
+                    help='number of intermediate nodes in one cell')
+parser.add_argument('--multiplier', type=int, default=4,
+                    help='number of intermediate nodes that will be concat')
+
 parser.add_argument('--use_sparsemax', action='store_true', default=False,
                     help='use sparsemax to replace softmax for alphas')
 parser.add_argument('--use_concrete', action='store_true', default=False,
                     help='use gumbel_softmax sample for alphas')
-parser.add_argument('--use_temp', action='store_true', default=True,
+
+parser.add_argument('--use_temp', action='store_true', default=False,
                     help='use temperature in softmax')
 parser.add_argument('--initial_temp', type=float, default=1.3,
                     help='initial softmax temperature')
@@ -113,9 +120,9 @@ parser.add_argument('--gan_k', type=int, default=1,
                     help='k value for adversarial loss')
 
 # Optimization specifications
-parser.add_argument('--lr', type=float, default=5e-3,
+parser.add_argument('--lr', type=float, default=5e-4,
                     help='learning rate')
-parser.add_argument('--lr_decay', type=int, default=100,
+parser.add_argument('--lr_decay', type=int, default=50,
                     help='learning rate decay per N epochs')
 parser.add_argument('--decay_type', type=str, default='step',
                     help='learning rate decay type')

@@ -6,15 +6,15 @@ parser = argparse.ArgumentParser("SR-DARTS")
 parser.add_argument('--search', action="store_true", default=False,
                     help='the searching process.')
 
-parser.add_argument('--arch', type=str, default='SRdarts_V1',
+parser.add_argument('--arch', type=str, default='SRdarts_V3',
                     help='which architecture to use')
 parser.add_argument('--checkpoint', action='store_true', default=False,
                     help='choose to keep training using the former model')
 
-parser.add_argument('--init_channels', type=int,
-                    default=32, help='num of init channels')
-parser.add_argument('--layers', type=int, default=16,
-                    help='total number of layers')
+parser.add_argument('--init_channels', type=int, default=32,
+                    help='num of init channels')
+parser.add_argument('--n_cells', type=int, default=16,
+                    help='the number of cells')
 
 parser.add_argument('--cutout', action='store_true',
                     default=False, help='use cutout')

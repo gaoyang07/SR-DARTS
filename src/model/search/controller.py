@@ -24,14 +24,18 @@ class NetworkController(nn.Module):
     def __init__(self, args, loss):
         super().__init__()
         self.args = args
-        self._criterion = loss
-        self.n_cells = args.layers
-        self._steps = 4
-        self._multiplier = 4
+        self.loss = loss
+        self.n_colors = args.n_colors
+        self.scale = args.scale[0]
+        self.n_cells = args.n_cells
+        self.n_nodes = args.n_nodes
+        self.multiplier = args.multiplier
+        self.init_channels = args.init_channels
 
         if args.use_temp:
             self.temperature = args.initial_temp
-        else: self.temperature = 1.0
+        else:
+            self.temperature = 1.0
         self.temperature = torch.tensor(self.temperature).cuda()
 
         self.use_sparsemax = args.use_sparsemax
@@ -52,7 +56,8 @@ class NetworkController(nn.Module):
             device_ids = list(range(torch.cuda.device_count()))
             self.device_ids = device_ids
 
-        self.network = Network(self.args, self._criterion)
+        self.network = Network(self.init_channels, self.n_colors,
+                               self.scale, self.n_cells, self.n_nodes, self.multiplier)
 
     def forward(self, x):
         if not self.use_concrete:
@@ -78,14 +83,14 @@ class NetworkController(nn.Module):
 
     def _loss(self, input, target):
         logits = self(input)
-        return self._criterion(logits, target)
+        return self.loss(logits, target)
 
     def temp_update(self, epoch):
         self.temperature = self.temperature * \
             math.pow(self.args.temp_beta, epoch)
 
     def _initialize_alphas(self):
-        k = sum(1 for i in range(self._steps) for n in range(2+i))
+        k = sum(1 for i in range(self.n_nodes) for n in range(2+i))
         num_ops = len(op_names)
 
         # self.alphas_normal = nn.ParameterList()
@@ -129,7 +134,7 @@ class NetworkController(nn.Module):
             gene = []
             n = 2
             start = 0
-            for i in range(self._steps):
+            for i in range(self.n_nodes):
                 end = start + n
                 W = weights[start:end].copy()
                 edges = sorted(range(i + 2), key=lambda x: -max(
@@ -153,7 +158,7 @@ class NetworkController(nn.Module):
         gene_normal = _parse(
             F.softmax(self.alphas_normal, dim=-1).data.cpu().numpy())
 
-        concat = range(2+self._steps-self._multiplier, self._steps+2)
+        concat = range(2+self.n_nodes-self.multiplier, self.n_nodes+2)
         genotype = Genotype(
             normal=gene_normal, normal_concat=concat,
         )

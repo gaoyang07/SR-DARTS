@@ -32,7 +32,7 @@ class Cell(nn.Module):
 
     def _compile(self, C, op_names, indices, concat, reduction):
         assert len(op_names) == len(indices)
-        self._steps = len(op_names) // 2
+        self.n_nodes = len(op_names) // 2
         self._concat = concat
         self.multiplier = len(concat)
 
@@ -49,7 +49,7 @@ class Cell(nn.Module):
         s1 = self.preprocess1(s1)
         states = [s0, s1]
 
-        for i in range(self._steps):
+        for i in range(self.n_nodes):
             h1 = states[self._indices[2*i]]
             h2 = states[self._indices[2*i+1]]
             op1 = self._ops[2*i]
