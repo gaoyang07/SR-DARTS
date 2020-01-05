@@ -66,3 +66,16 @@ conda install imageio
 pip install tb-nightly
 pip install future
 ```
+
+
+
+## Contributing to the Project
+
+Any pull requests or issues are welcome. The repository is still updating.
+
+
+
+## License
+
+For academic use, this project is licensed under the 2-clause BSD License - see the LICENSE file for details. For commercial use, please contact the authors.
+
